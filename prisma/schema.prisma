@@ -1,0 +1,152 @@
+// Ini adalah pengaturan dasar Prisma untuk terhubung ke PostgreSQL
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// 1. Tabel untuk Manajemen Akun & Login
+model User {
+  id        String   @id @default(cuid())
+  nama      String
+  email     String   @unique
+  password  String   
+  role      Role     @default(USER) 
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+// 2. Tabel Master Barang (Jenis Plastik)
+model Barang {
+  id           String   @id @default(cuid())
+  kodeBarang   String   @unique
+  namaBarang   String   // Contoh: Gelas Plastik 16oz, Mika Bento, Thinwall 500ml
+  kategori     String?
+  stokSekarang Int      @default(0) 
+  leadTime     Int      @default(1) 
+  
+  riwayatMasuk  BarangMasuk[]
+  riwayatKeluar BarangKeluar[]
+  dataPeramalan Peramalan[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ==========================================
+// FITUR PEMASOK / PRODUSEN (BARANG MASUK)
+// ==========================================
+
+// 3. Tabel Supplier (Pabrik Plastik)
+model Supplier {
+  id             String   @id @default(cuid())
+  namaPabrik     String   // Contoh: Pabrik Merak, Bintang Terang, dll
+  kontak         String?  // Nomor telepon sales pabrik
+  alamat         String?
+  
+  // Relasi: 1 Pabrik bisa punya banyak Nota Transaksi Masuk
+  transaksiMasuk TransaksiMasuk[]
+  
+  createdAt      DateTime @default(now())
+}
+
+// 4. Tabel Header Transaksi Masuk (Nota Pembelian dari Pabrik)
+model TransaksiMasuk {
+  id             String   @id @default(cuid())
+  nomorNota      String   @unique // Nomor surat jalan / invoice dari pabrik
+  tanggal        DateTime @default(now()) 
+  
+  // Relasi ke Supplier (Pabrik)
+  supplierId     String
+  supplier       Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  
+  // Relasi ke isi barang di dalam nota ini
+  detailBarang   BarangMasuk[] 
+}
+
+// 5. Tabel Detail Barang Masuk (Isi dari Nota Pembelian)
+model BarangMasuk {
+  id               String   @id @default(cuid())
+  jumlah           Int
+  tanggalMasuk     DateTime @default(now()) 
+  
+  // Relasi ke Master Barang
+  barangId         String
+  barang           Barang   @relation(fields: [barangId], references: [id], onDelete: Cascade)
+  
+  // Relasi ke Nota Pembelian
+  transaksiMasukId String
+  transaksiMasuk   TransaksiMasuk @relation(fields: [transaksiMasukId], references: [id], onDelete: Cascade)
+}
+
+
+// ==========================================
+// FITUR CUSTOMER (BARANG KELUAR)
+// ==========================================
+
+// 6. Tabel Customer (Pelanggan)
+model Customer {
+  id              String   @id @default(cuid())
+  nama            String   // Nama toko/pelanggan yang membeli
+  kontak          String?
+  alamat          String?
+  
+  // Relasi: 1 Customer bisa punya banyak Nota Transaksi Keluar
+  transaksiKeluar TransaksiKeluar[]
+  
+  createdAt       DateTime @default(now())
+}
+
+// 7. Tabel Header Transaksi Keluar (Nota/Struk Penjualan)
+model TransaksiKeluar {
+  id             String   @id @default(cuid())
+  nomorNota      String   @unique // Nomor struk yang di-generate sistem
+  tanggal        DateTime @default(now())
+  
+  // Relasi ke Customer
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  
+  // Relasi ke isi barang di dalam nota ini
+  detailBarang   BarangKeluar[]
+}
+
+// 8. Tabel Detail Barang Keluar (Isi dari Struk Penjualan / Data Skripsi)
+model BarangKeluar {
+  id                String   @id @default(cuid())
+  jumlah            Int
+  tanggalKeluar     DateTime @default(now()) // Tetap dipertahankan karena ini akan mempermudah penarikan data mingguan untuk perhitungan SMA
+  
+  // Relasi ke Master Barang
+  barangId          String
+  barang            Barang   @relation(fields: [barangId], references: [id], onDelete: Cascade)
+  
+  // Relasi ke Nota Penjualan
+  transaksiKeluarId String
+  transaksiKeluar   TransaksiKeluar @relation(fields: [transaksiKeluarId], references: [id], onDelete: Cascade)
+}
+
+
+// ==========================================
+// FITUR ANALITIK / PERAMALAN SMA
+// ==========================================
+
+// 9. Tabel Peramalan
+model Peramalan {
+  id            String   @id @default(cuid())
+  tanggalAwal   DateTime // Tanggal hari Senin minggu tersebut
+  tanggalAkhir  DateTime // Tanggal hari Minggu
+  nilaiSMA      Float    // Hasil hitungan SMA 3 minggu
+  nilaiMAPE     Float?   // Tingkat error
+  rop           Float?   // Reorder Point
+  
+  barangId      String
+  barang        Barang   @relation(fields: [barangId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+}
