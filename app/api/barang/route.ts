@@ -1,41 +1,58 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+// CREATE
+export async function POST(request: Request) {
   try {
-    const semuaBarang = await prisma.barang.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
+    const { kodeBarang, namaBarang, kategori } = await request.json();
+    const barangBaru = await prisma.barang.create({
+      data: { kodeBarang, namaBarang, kategori },
     });
-    
-    // Perbaikan Typo: sekarang tulisannya sudah benar "semuaBarang"
-    return NextResponse.json(semuaBarang, { status: 200 });
+    return NextResponse.json(barangBaru, { status: 201 });
   } catch (error) {
-    // Tambahan: agar kalau ada error lagi, terminal akan memberi tahu penyebab pastinya
-    console.error("Error GET Barang:", error);
-    return NextResponse.json({ error: "Gagal mengambil data barang" }, { status: 500 });
+    return NextResponse.json({ error: "Gagal menambah data" }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+// READ
+export async function GET() {
   try {
-    const body = await request.json();
-    const { kodeBarang, namaBarang, kategori, leadTime } = body;
-
-    const barangBaru = await prisma.barang.create({
-      data: {
-        kodeBarang: kodeBarang,
-        namaBarang: namaBarang,
-        kategori: kategori,
-        leadTime: Number(leadTime) || 1, 
-        stokSekarang: 0
-      }
+    const semuaBarang = await prisma.barang.findMany({
+      orderBy: { createdAt: 'desc' }
     });
-
-    return NextResponse.json(barangBaru, { status: 201 });
+    return NextResponse.json(semuaBarang, { status: 200 });
   } catch (error) {
-    console.error("Error POST Barang:", error);
-    return NextResponse.json({ error: "Gagal menambah data barang baru" }, { status: 500 });
+    return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
+  }
+}
+
+// UPDATE (EDIT)
+export async function PUT(request: Request) {
+  try {
+    const { id, kodeBarang, namaBarang, kategori } = await request.json();
+    const barangUpdate = await prisma.barang.update({
+      where: { id: id },
+      data: { kodeBarang, namaBarang, kategori },
+    });
+    return NextResponse.json(barangUpdate, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: "Gagal mengupdate data" }, { status: 500 });
+  }
+}
+
+// DELETE (HAPUS)
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id'); // Mengambil ID dari URL
+    
+    if (!id) return NextResponse.json({ error: "ID tidak ditemukan" }, { status: 400 });
+
+    await prisma.barang.delete({
+      where: { id: id }
+    });
+    return NextResponse.json({ message: "Berhasil dihapus" }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: "Gagal menghapus data" }, { status: 500 });
   }
 }
