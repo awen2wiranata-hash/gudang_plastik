@@ -2,107 +2,86 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { Package, Building2, Users, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Search, Bell, ChevronDown } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Pengaturan judul website di tab browser
 export const metadata: Metadata = {
-  title: "Family Jaya | Gudang",
-  description: "Sistem Manajemen Inventori dan Peramalan SMA",
+  title: "Family Jaya | Dashboard",
+  description: "Sistem Manajemen Inventori Terpadu",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id">
-      <body className={`${inter.className} bg-gray-50 text-gray-900`}>
-        <div className="flex h-screen overflow-hidden">
+      {/* Tambahkan print:bg-white agar kertas latar belakangnya putih bersih saat dicetak */}
+      <body className={`${inter.className} bg-gray-50 text-gray-900 print:bg-white`}>
+        <div className="flex h-screen overflow-hidden print:h-auto print:block">
           
-          {/* SIDEBAR (Menu Kiri) */}
-          <aside className="w-64 bg-slate-800 text-white flex flex-col shadow-xl z-20">
-            {/* Logo / Nama Toko */}
-            <div className="p-6 border-b border-slate-700 bg-slate-900">
-              <h1 className="text-2xl font-extrabold tracking-wider text-blue-400">FAMILY JAYA</h1>
-              <p className="text-xs text-slate-400 mt-1">Sistem Inventori & SMA</p>
+          {/* SIDEBAR - Tambahkan print:hidden agar hilang saat dicetak */}
+          <aside className="w-[260px] bg-white border-r border-gray-200 flex flex-col z-20 print:hidden">
+            <div className="h-20 flex items-center px-8 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-white font-bold text-lg">F</span>
+                </div>
+                <h1 className="text-xl font-bold text-gray-800 tracking-tight">Family Jaya</h1>
+              </div>
             </div>
             
-            {/* Daftar Menu */}
-            <nav className="flex-1 overflow-y-auto py-4">
-              <ul className="space-y-1 px-3">
-                <li className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2 px-3">
-                  Master Data
-                </li>
-                <li>
-                  <Link href="/barang" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors">
-                    📦 Master Barang
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/supplier" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors">
-                    🏢 Master Pemasok
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/customer" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors">
-                    👥 Master Pelanggan
-                  </Link>
-                </li>
-                
-                <li className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 px-3">
-                  Transaksi Gudang
-                </li>
-                <li>
-                  <Link href="/transaksi-masuk" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors text-emerald-400">
-                    📥 Barang Masuk
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/transaksi-keluar" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors text-rose-400">
-                    📤 Barang Keluar (Penjualan)
-                  </Link>
-                </li>
-                
-                <li className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 px-3">
-                  Analitik Skripsi
-                </li>
-                <li>
-                  <Link href="/peramalan" className="block px-3 py-2 rounded-md hover:bg-slate-700 transition-colors text-blue-300">
-                    📈 Peramalan SMA
-                  </Link>
-                </li>
-              </ul>
+            <nav className="flex-1 overflow-y-auto py-6 px-4">
+              <div className="mb-6">
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Master Data</p>
+                <ul className="space-y-1">
+                  <li><Link href="/barang" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Package size={20} className="text-gray-400 group-hover:text-blue-600" />Master Barang</Link></li>
+                  <li><Link href="/supplier" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Building2 size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pemasok</Link></li>
+                  <li><Link href="/customer" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Users size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pelanggan</Link></li>
+                </ul>
+              </div>
+              <div className="mb-6">
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Transaksi</p>
+                <ul className="space-y-1">
+                  <li><Link href="/transaksi-masuk" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowDownToLine size={20} className="text-emerald-500" />Barang Masuk</Link></li>
+                  <li><Link href="/transaksi-keluar" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowUpFromLine size={20} className="text-rose-500" />Penjualan Keluar</Link></li>
+                </ul>
+              </div>
+              <div>
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Analitik</p>
+                <ul className="space-y-1">
+                  <li><Link href="/peramalan" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 transition-colors"><TrendingUp size={20} className="text-blue-600" />Peramalan SMA</Link></li>
+                </ul>
+              </div>
             </nav>
           </aside>
 
-          {/* MAIN CONTENT AREA (Area Konten Kanan) */}
-          <div className="flex-1 flex flex-col relative">
+          {/* MAIN CONTENT AREA */}
+          <div className="flex-1 flex flex-col relative print:block">
             
-            {/* TOP NAVBAR (Header Atas) */}
-            <header className="h-16 bg-white shadow-sm flex items-center justify-between px-8 z-10 border-b border-gray-200">
-              <div className="text-lg font-semibold text-gray-700">
-                Aplikasi Gudang Plastik
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-sm font-bold text-gray-700">Wendy Wiranata</div>
-                  <div className="text-xs text-green-600 font-medium flex items-center gap-1 justify-end">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span> Online
-                  </div>
+            {/* NAVBAR / HEADER - Tambahkan print:hidden agar hilang saat dicetak */}
+            <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 z-10 print:hidden">
+              <div className="flex-1 max-w-md">
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={18} className="text-gray-400" /></div>
+                  <input type="text" className="block w-full pl-10 pr-3 py-2.5 border border-transparent rounded-full text-sm bg-gray-100 placeholder-gray-500 focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-50 transition-all" placeholder="Cari menu atau data..." />
                 </div>
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-md border-2 border-blue-200">
-                  W
+              </div>
+              <div className="flex items-center gap-6">
+                <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"><Bell size={22} /><span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span></button>
+                <div className="flex items-center gap-3 pl-6 border-l border-gray-200 cursor-pointer group">
+                  <div className="text-right hidden md:block">
+                    <p className="text-sm font-bold text-gray-700 group-hover:text-blue-600">Wendy Wiranata</p>
+                    <p className="text-xs text-gray-500 font-medium">Administrator</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden"><span className="font-bold text-indigo-700">W</span></div>
+                  <ChevronDown size={16} className="text-gray-400" />
                 </div>
               </div>
             </header>
 
-            {/* DYNAMIC PAGE CONTENT (Isi Halaman Berubah-ubah di sini) */}
-            <main className="flex-1 overflow-y-auto relative">
+            {/* PAGE CONTENT - Tambahkan print:bg-white agar latar belakang tidak abu-abu di kertas */}
+            <main className="flex-1 overflow-y-auto relative bg-gray-50 print:bg-white print:overflow-visible">
               {children}
             </main>
-            
           </div>
         </div>
       </body>
