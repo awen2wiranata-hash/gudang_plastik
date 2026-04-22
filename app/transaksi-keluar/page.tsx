@@ -1,197 +1,345 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Select from "react-select";
+import Select from "react-select"
+import { Eye, Trash2, X, Plus, List, FileText, CheckCircle } from "lucide-react";
 
 type Customer = { id: string; nama: string };
-type Barang = { id: string; namaBarang: string; kodeBarang: string; stokSekarang: number };
+type Barang = { id: string; namaBarang: string; kodeBarang: string; stokSekarang: number};
 type DetailKeluar = { barangId: string; jumlah: number | "" };
 type RiwayatKeluar = {
-  id: string;
-  nomorNota: string;
-  tanggal: string;
+  id: string; nomorNota: string; tanggal: string; customerId: string;
   customer: { nama: string };
-  detailBarang: { jumlah: number; barang: { namaBarang: string } }[];
+  detailBarang: { jumlah: number; barang: { id: string; namaBarang: string; kodeBarang: string } }[];
+};
+type TabItem = {
+  id: string; title: string; type: "RIWAYAT" | "FORM"; dataEdit?: RiwayatKeluar;
 };
 
-export default function TransaksiKeluarPage() {
-  const [daftarCustomer, setDaftarCustomer] = useState<Customer[]>([]);
-  const [daftarBarang, setDaftarBarang] = useState<Barang[]>([]);
-  const [riwayatKeluar, setRiwayatKeluar] = useState<RiwayatKeluar[]>([]);
-  const [loading, setLoading] = useState(true);
+const FormTransaksiTab = ({ 
+   dataEdit, daftarCustomer, daftarBarang, onSuccess, onClose, onDelete 
+}: { 
+  tabId: string, dataEdit?: RiwayatKeluar, daftarCustomer: Customer[], daftarBarang: Barang[], 
+  onSuccess: () => void, onClose: () => void, onDelete?: (id: string, nota: string) => void 
+}) => {
+  const isEdit = !!dataEdit;
+  const [nomorNota, setNomorNota] = useState(dataEdit?.nomorNota || "");
+  const [customerId, setCustomerId] = useState(dataEdit?.customerId || "");
+  const [tanggal, setTanggal] = useState(dataEdit?.tanggal ? new Date(dataEdit.tanggal).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  
+  const [keranjang, setKeranjang] = useState<DetailKeluar[]>(
+    dataEdit 
+      ? dataEdit.detailBarang.map(d => ({ barangId: d.barang.id, jumlah: d.jumlah })) 
+      : [{ barangId: "", jumlah: 1 }]
+  );
 
-  const [nomorNota, setNomorNota] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
-  const [keranjang, setKeranjang] = useState<DetailKeluar[]>([{ barangId: "", jumlah: 1 }]);
-
-  const fetchData = async () => {
-    try {
-      const [resCus, resBar, resRiw] = await Promise.all([
-        fetch("/api/customer"),
-        fetch("/api/barang"),
-        fetch("/api/transaksi-keluar")
-      ]);
-
-      const dataCus = await resCus.json();
-      const dataBar = await resBar.json();
-      const dataRiw = await resRiw.json();
-
-      if (Array.isArray(dataCus)) setDaftarCustomer(dataCus);
-      if (Array.isArray(dataBar)) setDaftarBarang(dataBar);
-      if (Array.isArray(dataRiw)) setRiwayatKeluar(dataRiw);
-    } catch (error) {
-      console.error("Gagal mengambil data", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const opsiCustomer = daftarCustomer.map((cus) => ({ value: cus.id, label: cus.nama }));
+  
+  const opsiCustomer = daftarCustomer.map((sup) => ({ value: sup.id, label: sup.nama }));
   const opsiBarang = daftarBarang.map((brg) => ({
-    value: brg.id,
-    label: `[${brg.kodeBarang}] ${brg.namaBarang} (Tersedia: ${brg.stokSekarang})`,
-    stok: brg.stokSekarang
+    value: brg.id, label: `[${brg.kodeBarang}] ${brg.namaBarang} (Stok: ${brg.stokSekarang})`
   }));
 
-  const tambahBaris = () => setKeranjang([...keranjang, { barangId: "", jumlah: 1 }]);
-  const hapusBaris = (index: number) => {
-    const isiBaru = [...keranjang];
-    isiBaru.splice(index, 1);
-    setKeranjang(isiBaru);
-  };
   const ubahKeranjang = (index: number, field: keyof DetailKeluar, value: string | number) => {
     const isiBaru = [...keranjang];
     isiBaru[index] = { ...isiBaru[index], [field]: value };
     setKeranjang(isiBaru);
   };
 
+  const hapusBaris = (index: number) => {
+    const isiBaru = [...keranjang];
+    isiBaru.splice(index, 1);
+    setKeranjang(isiBaru);
+  };
+
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    for (const item of keranjang) {
-      const barangTerpilih = daftarBarang.find(b => b.id === item.barangId);
-      if (barangTerpilih && Number(item.jumlah) > barangTerpilih.stokSekarang) {
-        return alert(`Stok ${barangTerpilih.namaBarang} tidak cukup! Tersedia: ${barangTerpilih.stokSekarang}`);
-      }
-    }
+    const barangValid = keranjang.filter(k => k.barangId !== "" && Number(k.jumlah) > 0);
+    if (barangValid.length === 0) return alert("Pilih minimal 1 barang valid!");
+    if (!customerId) return alert("Pilih customer!");
 
     try {
-      const res = await fetch("/api/transaksi-keluar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          nomorNota, 
-          customerId, 
-          tanggal,
-          detailBarang: keranjang.filter(k => k.barangId !== "") 
-        }),
+      const url = "/api/transaksi-keluar";
+      const method = isEdit ? "PUT" : "POST";
+      const payload = { id: dataEdit?.id, nomorNota, customerId, tanggal, detailBarang: barangValid };
+
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
 
-      const result = await res.json();
       if (res.ok) {
-        alert("✅ Penjualan Berhasil! Stok otomatis terpotong.");
-        setNomorNota("");
-        setCustomerId("");
-        setTanggal(new Date().toISOString().split('T')[0]);
-        setKeranjang([{ barangId: "", jumlah: 1 }]);
-        fetchData();
+        alert(isEdit ? "✅ Perubahan nota berhasil disimpan!" : "✅ Transaksi Berhasil disimpan!");
+        onSuccess();
       } else {
-        alert("Gagal: " + result.error);
+        alert("Gagal menyimpan transaksi.");
       }
     } catch (error) {
-      alert("Terjadi kesalahan sistem.");
+      console.error(error);
     }
   };
 
+  
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-gray-800">📤 Pengiriman Barang (Penjualan)</h1>
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-in fade-in duration-200">
+      
+      {/* HEADER TAB FORM */}
+      <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+        <h2 className="text-lg font-bold flex items-center gap-2 text-gray-800">
+          {isEdit ? <Eye size={20} className="text-blue-500"/> : <FileText size={20} className="text-blue-500"/>}
+          {isEdit ? `Rincian / Edit Nota: ${dataEdit.nomorNota}` : "Form Penerimaan Baru"}
+        </h2>
+        
+        {/* TOMBOL AKSI DI KANAN ATAS */}
+        <div className="flex items-center gap-2">
+          {isEdit && onDelete && dataEdit && (
+            <button 
+              type="button" 
+              onClick={() => onDelete(dataEdit.id, dataEdit.nomorNota)} 
+              className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-red-200"
+            >
+              <Trash2 size={16}/> Hapus Nota
+            </button>
+          )}
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="text-sm font-bold text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <X size={16}/> Tutup Tab
+          </button>
+        </div>
+      </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8 border border-red-100">
-        <form onSubmit={handleSubmit}>
-          <div className="flex gap-4 mb-6 pb-6 border-b border-gray-100">
-            <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Keluar</label>
-              <input type="date" required value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full border border-gray-300 rounded-md p-2 h-[38px]" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Nota Penjualan</label>
-              <input type="text" required value={nomorNota} onChange={(e) => setNomorNota(e.target.value)} className="w-full border border-gray-300 rounded-md p-2 h-[38px]" placeholder="Contoh: PJL-001" />
-            </div>
-            <div className="flex-[2]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Pelanggan / Toko</label>
-              <Select 
-                options={opsiCustomer} 
-                value={opsiCustomer.find(opt => opt.value === customerId) || null}
-                onChange={(p) => setCustomerId(p?.value || "")}
-                placeholder="Cari nama pelanggan..."
-                isSearchable
-              />
-            </div>
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-bold text-gray-600 mb-1">Tanggal</label>
+            <input type="date" required value={tanggal} onChange={(e) => setTanggal(e.target.value)} 
+            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
           </div>
-
-          <h3 className="text-lg font-semibold mb-3 text-gray-700">Daftar Barang Keluar</h3>
+          <div className="md:col-span-1">
+            <label className="block text-sm font-bold text-gray-600 mb-1">No. Nota / Surat Jalan</label>
+            <input type="text" required value={nomorNota} onChange={(e) => setNomorNota(e.target.value)} 
+            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="INV-001" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-bold text-gray-600 mb-1">Customer</label>
+            <Select 
+              options={opsiCustomer}value={opsiCustomer.find(opt => opt.value === customerId) || null}
+              onChange={(p) => setCustomerId(p?.value || "")} placeholder="Ketik nama customer..." isSearchable
+              styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem', borderColor: '#d1d5db', padding: '1px' }) }}
+            />
+          </div>
+        </div>
+        
+      
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Rincian Barang Keluar</h3>
           {keranjang.map((item, index) => (
             <div key={index} className="flex gap-4 mb-3 items-center">
               <div className="flex-[3]">
                 <Select 
-                  options={opsiBarang} 
-                  value={opsiBarang.find(opt => opt.value === item.barangId) || null}
-                  onChange={(p) => ubahKeranjang(index, "barangId", p?.value || "")}
-                  placeholder="Cari barang plastik..."
-                  isSearchable
+                  options={opsiBarang} value={opsiBarang.find(opt => opt.value === item.barangId) || null}
+                  onChange={(p) => ubahKeranjang(index, "barangId", p?.value || "")} placeholder="Ketik/Cari nama barang plastik..." isSearchable
+                  styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem' }) }}
                 />
               </div>
               <div className="flex-1">
-                <input type="number" min="1" required value={item.jumlah} onChange={(e) => ubahKeranjang(index, "jumlah", e.target.value ? Number(e.target.value) : "")} className="w-full border border-gray-300 rounded-md p-2 h-[38px]" placeholder="Jumlah Qty" />
+                <input type="number" min="1" required value={item.jumlah} 
+                onChange={(e) => ubahKeranjang(index, "jumlah", e.target.value ? Number(e.target.value) : "")} 
+                className=" text-black w-full border border-gray-300 rounded-lg p-[9px] outline-none focus:border-blue-500" placeholder="Qty" />
               </div>
-              <div className="w-10">
+              <div className="w-10 flex justify-center">
                 {index > 0 && (
-                  <button type="button" onClick={() => hapusBaris(index)} className="w-full bg-red-100 hover:bg-red-200 text-red-600 font-bold p-2 h-[38px] rounded-md transition-colors">X</button>
+                  <button type="button" onClick={() => hapusBaris(index)} 
+                  className="text-red-500 hover:bg-red-100 p-2 rounded-lg transition-colors"><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
           ))}
-
-          <div className="flex justify-between mt-6">
-            <button type="button" onClick={tambahBaris} className="text-blue-600 font-medium border border-blue-600 py-2 px-4 rounded-md hover:bg-blue-50">+ Tambah Baris</button>
-            <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-8 rounded-md transition-colors shadow-sm">Simpan & Potong Stok</button>
+          <div className="mt-4">
+            <button type="button" onClick={() => setKeranjang([...keranjang, { barangId: "", jumlah: 1 }])} 
+            className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+              <Plus size={16}/> Tambah Baris
+            </button>
           </div>
-        </form>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-3 px-6 rounded-lg transition-colors">
+            Tutup
+          </button>
+          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+            <CheckCircle size={18}/> {isEdit ? "Simpan Perubahan Nota" : "Simpan Transaksi"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+export default function TransaksiKeluarPage() {
+  const [daftarCustomer, setDaftarCustomer] = useState<Customer[]>([]);
+  const [daftarBarang, setDaftarBarang] = useState<Barang[]>([]);
+  const [RiwayatKeluar, setRiwayatKeluar] = useState<RiwayatKeluar[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [tabs, setTabs] = useState<TabItem[]>([{ id: "riwayat", title: "Riwayat Keluar", type: "RIWAYAT" }]);
+  const [activeTab, setActiveTab] = useState<string>("riwayat");
+
+  const fetchData = async () => {
+    try {
+      const [resSup, resBar, resRiw] = await Promise.all([
+        fetch("/api/customer"), fetch("/api/barang"), fetch("/api/transaksi-keluar")
+      ]);
+      setDaftarCustomer(await resSup.json());
+      setDaftarBarang(await resBar.json());
+      setRiwayatKeluar(await resRiw.json());
+    } catch (error) {
+      console.error("Gagal mengambil data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+    useEffect(() => { fetchData(); }, []);
+  
+    const bukaTabBaru = () => {
+      const newId = `form-${Date.now()}`;
+      const newTab: TabItem = { id: newId, title: "Penerimaan Baru", type: "FORM" };
+      setTabs([...tabs, newTab]);
+      setActiveTab(newId);
+    };
+  
+    // Fungsi saat tombol "Buka" diklik dari tabel
+    const bukaTabEdit = (riwayat: RiwayatKeluar) => {
+      const existingTab = tabs.find(t => t.dataEdit?.id === riwayat.id);
+      if (existingTab) {
+        setActiveTab(existingTab.id);
+        return;
+      }
+      const newId = `edit-${riwayat.id}`;
+      const newTab: TabItem = { id: newId, title: `Nota: ${riwayat.nomorNota}`, type: "FORM", dataEdit: riwayat };
+      setTabs([...tabs, newTab]);
+      setActiveTab(newId);
+    };
+  
+    const tutupTab = (idToClose: string) => {
+      const newTabs = tabs.filter(t => t.id !== idToClose);
+      setTabs(newTabs);
+      if (activeTab === idToClose) setActiveTab("riwayat");
+    };
+  
+    const handleTransaksiSukses = (tabId: string) => {
+      fetchData(); 
+      tutupTab(tabId); 
+    };
+  
+    
+  const klikHapus = async (id: string, nota: string) => {
+    if (confirm(`PENGHAPUSAN PERMANEN\n\nApakah Anda yakin ingin menghapus transaksi nota ${nota}?\nStok barang yang terlanjur keluar dari nota ini akan ditarik (dikurangi) kembali secara otomatis.`)) {
+      try {
+        const res = await fetch(`/api/transaksi-keluar?id=${id}`, { method: "DELETE" });
+        if (res.ok) {
+          alert("Transaksi berhasil dihapus dan stok telah dikembalikan!");
+          fetchData();
+          tutupTab(`edit-${id}`); // Otomatis menutup tab edit jika sedang terbuka
+        } else {
+          alert("Gagal menghapus transaksi.");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+
+  return (
+    <div className="p-8 max-w-8xl mx-auto bg-gray-50 min-h-screen">
+      
+      {/* HEADER & TAB BAR */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight mb-6">Penerimaan Barang</h1>
+        <div className="flex border-b border-gray-200 overflow-x-auto gap-1">
+          {tabs.map((tab) => (
+            <div 
+              key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`group flex items-center gap-2 px-5 py-3 cursor-pointer rounded-t-xl transition-all font-medium text-sm border-b-2
+                ${activeTab === tab.id ? 'bg-white text-blue-600 border-blue-600 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]' : 'text-gray-500 border-transparent hover:text-gray-800 hover:bg-gray-100'}`}
+            >
+              {tab.type === "RIWAYAT" ? <List size={16} /> : <FileText size={16} />}
+              {tab.title}
+              {tab.type === "FORM" && (
+                <button onClick={(e) => { e.stopPropagation(); tutupTab(tab.id); }} className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-500 transition-colors">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={bukaTabBaru} className="flex items-center gap-1 px-4 py-3 ml-2 text-sm font-bold text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-t-xl transition-all">
+            <Plus size={18} /> Transaksi Baru
+          </button>
+        </div>
       </div>
 
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">📋 Riwayat Penjualan</h2>
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tgl / Nota</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barang Keluar</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {riwayatKeluar.map((r) => (
-              <tr key={r.id}>
-                <td className="px-6 py-4 font-medium">
-                  <div>{r.nomorNota}</div>
-                  <div className="text-xs text-gray-500">{new Date(r.tanggal).toLocaleDateString('id-ID')}</div>
-                </td>
-                <td className="px-6 py-4">{r.customer?.nama || "-"}</td>
-                <td className="px-6 py-4 text-sm">
-                  {r.detailBarang.map((d, i) => (
-                    <div key={i}>{d.barang.namaBarang} (x{d.jumlah})</div>
-                  ))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="relative">
+        {/* KONTEN TAB RIWAYAT */}
+        <div className={activeTab === "riwayat" ? "block animate-in fade-in duration-300" : "hidden"}>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-5 border-b border-gray-100 bg-white flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Daftar Nota Penerimaan</h2>
+              <button onClick={fetchData} className="text-sm font-bold text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors border border-blue-200">
+                🔄 Segarkan Data
+              </button>
+            </div>
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">No. Nota</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Total Item</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-50">
+                {loading ? <tr><td colSpan={5} className="text-center py-10 text-gray-400">Memuat data...</td></tr> : 
+                 RiwayatKeluar.length === 0 ? <tr><td colSpan={5} 
+                 className="text-center py-10 text-gray-400">Belum ada transaksi. Buka Tab "Transaksi Baru" untuk menambah.</td></tr> :
+                 RiwayatKeluar.map((riwayat) => (
+                  <tr key={riwayat.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-black">{new Date(riwayat.tanggal).toLocaleDateString('id-ID')}</td>
+                    <td className="px-6 py-4 font-bold text-gray-800">{riwayat.nomorNota}</td>
+                    <td className="px-6 py-4 text-gray-600">{riwayat.customer?.nama || "-"}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="bg-blue-50 text-blue-700 py-1 px-3 rounded-full text-xs font-bold border border-blue-100">
+                        {riwayat.detailBarang.length} Jenis
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {/* TOMBOL BUKA YANG LANGSUNG MENGARAH KE TAB EDIT/RINCIAN */}
+                      <button 
+                        onClick={() => bukaTabEdit(riwayat)} 
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                      >
+                        <Eye size={16} /> Buka Nota
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* RENDER KONTEN TAB FORM */}
+        {tabs.filter(t => t.type === "FORM").map((tab) => (
+          <div key={tab.id} className={activeTab === tab.id ? "block" : "hidden"}>
+            <FormTransaksiTab 
+              tabId={tab.id} dataEdit={tab.dataEdit} daftarCustomer={daftarCustomer} daftarBarang={daftarBarang}
+              onSuccess={() => handleTransaksiSukses(tab.id)} onClose={() => tutupTab(tab.id)}
+              onDelete={klikHapus} // Mengirimkan fungsi Hapus ke dalam komponen Form
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
