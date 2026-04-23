@@ -1,24 +1,42 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { Package, Building2, Users, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Search, Bell, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { 
+  Package, Building2, Users, ArrowDownToLine, ArrowUpFromLine, 
+  TrendingUp, Search, Bell, ChevronDown, LogOut 
+} from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "Family Jaya | Dashboard",
-  description: "Sistem Manajemen Inventori Terpadu",
-};
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const router = useRouter();
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const handleLogout = async () => {
+    if(confirm("Apakah Anda yakin ingin keluar?")) {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    }
+  };
+
   return (
     <html lang="id">
-      {/* Tambahkan print:bg-white agar kertas latar belakangnya putih bersih saat dicetak */}
+      <head>
+        {/* Pengganti metadata karena ini adalah file "use client" */}
+        <title>Family Jaya | Dashboard</title>
+        <meta name="description" content="Sistem Manajemen Inventori Terpadu" />
+      </head>
       <body className={`${inter.className} bg-gray-50 text-gray-900 print:bg-white`}>
         <div className="flex h-screen overflow-hidden print:h-auto print:block">
           
-          {/* SIDEBAR - Tambahkan print:hidden agar hilang saat dicetak */}
+          {/* SIDEBAR */}
           <aside className="w-[260px] bg-white border-r border-gray-200 flex flex-col z-20 print:hidden">
             <div className="h-20 flex items-center px-8 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -29,27 +47,40 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </div>
             </div>
             
-            <nav className="flex-1 overflow-y-auto py-6 px-4">
-              <div className="mb-6">
-                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Master Data</p>
-                <ul className="space-y-1">
-                  <li><Link href="/barang" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Package size={20} className="text-gray-400 group-hover:text-blue-600" />Master Barang</Link></li>
-                  <li><Link href="/supplier" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Building2 size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pemasok</Link></li>
-                  <li><Link href="/customer" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Users size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pelanggan</Link></li>
-                </ul>
-              </div>
-              <div className="mb-6">
-                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Transaksi</p>
-                <ul className="space-y-1">
-                  <li><Link href="/transaksi-masuk" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowDownToLine size={20} className="text-emerald-500" />Barang Masuk</Link></li>
-                  <li><Link href="/transaksi-keluar" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowUpFromLine size={20} className="text-rose-500" />Penjualan Keluar</Link></li>
-                </ul>
-              </div>
+            <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col justify-between">
               <div>
-                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Analitik</p>
-                <ul className="space-y-1">
-                  <li><Link href="/peramalan" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 transition-colors"><TrendingUp size={20} className="text-blue-600" />Peramalan SMA</Link></li>
-                </ul>
+                <div className="mb-6">
+                  <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Master Data</p>
+                  <ul className="space-y-1">
+                    <li><Link href="/barang" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Package size={20} className="text-gray-400 group-hover:text-blue-600" />Master Barang</Link></li>
+                    <li><Link href="/supplier" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Building2 size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pemasok</Link></li>
+                    <li><Link href="/customer" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Users size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pelanggan</Link></li>
+                  </ul>
+                </div>
+                <div className="mb-6">
+                  <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Transaksi</p>
+                  <ul className="space-y-1">
+                    <li><Link href="/transaksi-masuk" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowDownToLine size={20} className="text-emerald-500" />Barang Masuk</Link></li>
+                    <li><Link href="/transaksi-keluar" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowUpFromLine size={20} className="text-rose-500" />Penjualan Keluar</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Analitik</p>
+                  <ul className="space-y-1">
+                    <li><Link href="/peramalan" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 transition-colors"><TrendingUp size={20} className="text-blue-600" />Peramalan SMA</Link></li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* TOMBOL LOGOUT */}
+              <div className="mt-8 pt-6 border-t border-gray-100">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold rounded-xl text-red-600 hover:bg-red-50 transition-colors group"
+                >
+                  <LogOut size={20} className="text-red-400 group-hover:text-red-600" />
+                  Keluar Sistem
+                </button>
               </div>
             </nav>
           </aside>
@@ -57,7 +88,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {/* MAIN CONTENT AREA */}
           <div className="flex-1 flex flex-col relative print:block">
             
-            {/* NAVBAR / HEADER - Tambahkan print:hidden agar hilang saat dicetak */}
+            {/* NAVBAR / HEADER */}
             <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 z-10 print:hidden">
               <div className="flex-1 max-w-md">
                 <div className="relative group">
@@ -78,7 +109,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </div>
             </header>
 
-            {/* PAGE CONTENT - Tambahkan print:bg-white agar latar belakang tidak abu-abu di kertas */}
+            {/* PAGE CONTENT */}
             <main className="flex-1 overflow-y-auto relative bg-gray-50 print:bg-white print:overflow-visible">
               {children}
             </main>
