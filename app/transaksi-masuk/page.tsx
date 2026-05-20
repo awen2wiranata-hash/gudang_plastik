@@ -39,7 +39,7 @@ const FormTransaksiTab = ({
 
   const opsiSupplier = daftarSupplier.map((sup) => ({ value: sup.id, label: sup.namaPabrik }));
   const opsiBarang = daftarBarang.map((brg) => ({
-    value: brg.id, label: `[${brg.kodeBarang}] ${brg.namaBarang} (Stok: ${brg.stokSekarang})`
+    value: brg.id, label: `${brg.namaBarang} (Stok: ${brg.stokSekarang})`
   }));
 
   const ubahKeranjang = (index: number, field: keyof DetailMasuk, value: string | number) => {

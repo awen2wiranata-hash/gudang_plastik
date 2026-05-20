@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   try {
     const { username, password } = await request.json();
 
-    // Untuk keperluan Skripsi, kita gunakan hardcode (bisa diubah ke database nanti)
+    // Validasi hardcode untuk Skripsi
     if (username === "admin" && password === "admin123") {
       const response = NextResponse.json({ success: true, message: "Login Berhasil" }, { status: 200 });
 

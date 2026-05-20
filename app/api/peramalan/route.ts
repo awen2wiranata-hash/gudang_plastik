@@ -3,69 +3,109 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // 1. Tarik semua barang beserta riwayat penjualannya selama 28 HARI (4 Minggu) terakhir
-    const tanggalBatas = new Date();
-    tanggalBatas.setDate(tanggalBatas.getDate() - 28);
+    const now = new Date();
+    
+    // 1. TENTUKAN TITIK AWAL HARI SENIN MINGGU INI (Jam 00:00:00)
+    const dayOfWeek = now.getDay();
+    // Di JavaScript: Minggu = 0, Senin = 1. Kita ubah agar Senin = 0, Minggu = 6
+    const daysSinceMonday = (dayOfWeek + 6) % 7; 
+    
+    const currentMonday = new Date(now);
+    currentMonday.setDate(now.getDate() - daysSinceMonday);
+    currentMonday.setHours(0, 0, 0, 0); // Kunci di jam 12 malam pas
 
+    const msPerDay = 24 * 60 * 60 * 1000;
+    
+    // 2. BUAT KERANJANG WAKTU (Mundur per 7 hari dari Senin minggu ini)
+    const batasW4 = currentMonday.getTime();                 // W4: Senin minggu ini
+    const batasW3 = batasW4 - (7 * msPerDay);                // W3: Senin 1 minggu lalu
+    const batasW2 = batasW4 - (14 * msPerDay);               // W2: Senin 2 minggu lalu
+    const batasW1 = batasW4 - (21 * msPerDay);               // W1: Senin 3 minggu lalu (Contoh: 30 Maret)
+    const batasW0 = batasW4 - (28 * msPerDay);               // W0: Senin 4 minggu lalu (Khusus untuk hitung MAPE)
+
+    // Tarik data 4 minggu full ke belakang
     const semuaBarang = await prisma.barang.findMany({
       include: {
         riwayatKeluar: {
-          where: {
-            tanggalKeluar: { gte: tanggalBatas }
-          }
+          where: { tanggalKeluar: { gte: new Date(batasW0) } }
         }
       },
       orderBy: { namaBarang: 'asc' }
     });
 
-    const hariIni = new Date();
-    const tglMulai = new Date();
-    tglMulai.setDate(hariIni.getDate() - 21); // Batas 3 minggu untuk tampilan
-
-    // 2. Lakukan perhitungan SMA dan MAPE untuk setiap barang
     const hasilLaporan = semuaBarang.map(barang => {
-      let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
+      let w0 = 0, w1 = 0, w2 = 0, w3 = 0, w4 = 0;
       
-      const now = new Date().getTime();
-      const dayMs = 24 * 60 * 60 * 1000;
-
-      // Kelompokkan penjualan ke dalam 4 keranjang minggu
+      // Kelompokkan penjualan ke minggu yang tepat (Senin - Minggu)
       barang.riwayatKeluar.forEach(keluar => {
-        const diffDays = Math.floor((now - new Date(keluar.tanggalKeluar).getTime()) / dayMs);
-        if (diffDays >= 21 && diffDays < 28) w1 += keluar.jumlah;      // Minggu ke-1 (Paling lama)
-        else if (diffDays >= 14 && diffDays < 21) w2 += keluar.jumlah; // Minggu ke-2
-        else if (diffDays >= 7 && diffDays < 14) w3 += keluar.jumlah;  // Minggu ke-3
-        else if (diffDays >= 0 && diffDays < 7) w4 += keluar.jumlah;   // Minggu ke-4 (Minggu ini)
+        const tglTrans = new Date(keluar.tanggalKeluar).getTime();
+        if (tglTrans >= batasW0 && tglTrans < batasW1) w0 += keluar.jumlah;
+        else if (tglTrans >= batasW1 && tglTrans < batasW2) w1 += keluar.jumlah;
+        else if (tglTrans >= batasW2 && tglTrans < batasW3) w2 += keluar.jumlah;
+        else if (tglTrans >= batasW3 && tglTrans < batasW4) w3 += keluar.jumlah; // Minggu lalu
+        else if (tglTrans >= batasW4) w4 += keluar.jumlah; // Minggu ini (Sedang berjalan)
       });
 
-      // --- LOGIKA HITUNG MAPE ---
-      // Ramal minggu ini menggunakan 3 minggu sebelumnya
-      const prediksiMingguIni = (w1 + w2 + w3) / 3;
-      
+      // --- LOGIKA PERAMALAN (SMA) ---
+      // Ramal minggu ini (W4) menggunakan 3 minggu full sebelumnya (W1, W2, W3)
+      const smaMingguIni = (w1 + w2 + w3) / 3;
+
+      // --- LOGIKA HITUNG MAPE (AKURASI ERROR) ---
+      // Karena minggu ini (W4) belum selesai (baru hari Kamis), tidak adil menghitung error di W4.
+      // Kita hitung MAPE dari minggu lalu (W3) yang sudah selesai dari Senin-Minggu.
+      // Prediksi W3 didapat dari rata-rata (W0 + W1 + W2).
+      const prediksiMingguLalu = (w0 + w1 + w2) / 3;
       let mape = 0;
-      // Rumus MAPE = |(Aktual - Prediksi) / Aktual| * 100%
-      if (w4 > 0) {
-        mape = Math.abs((w4 - prediksiMingguIni) / w4) * 100;
-      } else if (w4 === 0 && prediksiMingguIni > 0) {
-        mape = 100; // Jika aktual 0 tapi diprediksi ada, anggap error 100%
+      
+      if (w3 > 0) {
+        mape = Math.abs((w3 - prediksiMingguLalu) / w3) * 100;
+      } else if (w3 === 0 && prediksiMingguLalu > 0) {
+        mape = 100; 
       }
 
-      // --- LOGIKA HITUNG SMA MINGGU DEPAN ---
-      // Ramal minggu depan menggunakan 3 minggu terakhir (termasuk minggu ini)
+// --- LOGIKA HITUNG SMA MINGGU DEPAN ---
       const smaMingguDepan = (w2 + w3 + w4) / 3;
 
-      return {
+      // ==========================================
+      // --- LOGIKA HITUNG ROP ---
+      // ==========================================
+      // 1. Tentukan Lead Time (Asumsi terburuk 7 hari karena antisipasi weekend)
+      const leadTimeHari = 7;
+      
+      // 2. Cari penjualan rata-rata harian
+      const penjualanHarian = smaMingguDepan / 7;
+      
+      // 3. Hitung Safety Stock Dinamis (20% dari peramalan minggu depan)
+      const safetyStock = Math.ceil(smaMingguDepan * 0.20);
+      
+      // 4. Rumus ROP
+      const nilaiRop = Math.ceil((leadTimeHari * penjualanHarian) + safetyStock);
+      
+      // 5. Penentu Status (Bandingkan Stok Fisik dengan ROP)
+      const statusPeringatan = barang.stokSekarang <= nilaiRop ? "PERLU RESTOCK ⚠️" : "AMAN ✅";
+      // ==========================================
+
+   return {
         id: barang.id,
         kodeBarang: barang.kodeBarang,
         namaBarang: barang.namaBarang,
         stokSekarang: barang.stokSekarang,
-        tanggalAwal: tglMulai.toISOString(),
-        tanggalAkhir: hariIni.toISOString(),
-        total3Minggu: w2 + w3 + w4, // Total yang terjual 3 mgg terakhir
+        tanggalAwal: new Date(batasW1).toISOString(),
+        tanggalAkhir: new Date(batasW4 - 1).toISOString(), 
+        total3Minggu: w1 + w2 + w3, 
+        
+        // FIX 1: Panggil variabel smaMingguDepan yang tepat
         smaMingguDepan: parseFloat(smaMingguDepan.toFixed(2)),
-        mape: parseFloat(mape.toFixed(2))
+        
+        mape: parseFloat(mape.toFixed(2)),
+        
+        // FIX 2: Sisipkan variabel ROP agar datanya bisa ditarik oleh tabel halaman UI
+        batasRop: nilaiRop,
+        statusPeringatan: statusPeringatan 
       };
     });
+
+    
 
     return NextResponse.json(hasilLaporan, { status: 200 });
 
