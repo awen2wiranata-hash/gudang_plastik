@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import * as xlsx from "xlsx"; 
 import { Printer, Download, RefreshCw } from "lucide-react";
 
-// 1. Tipe data diperbarui (menambahkan batasRop dan statusPeringatan)
 type HasilPeramalan = {
   id: string; kodeBarang: string; namaBarang: string; stokSekarang: number;
   tanggalAwal: string; tanggalAkhir: string; total3Minggu: number;
@@ -13,9 +12,15 @@ type HasilPeramalan = {
   statusPeringatan: string;
 };
 
+// Tambahkan tipe untuk filter
+type FilterTabel = "SEMUA" | "RESTOCK" | "KOSONG";
+
 export default function PeramalanPage() {
   const [dataPeramalan, setDataPeramalan] = useState<HasilPeramalan[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State baru untuk melacak kotak mana yang diklik
+  const [filterAktiv, setFilterAktiv] = useState<FilterTabel>("SEMUA");
 
   const fetchData = async () => {
     setLoading(true);
@@ -32,12 +37,18 @@ export default function PeramalanPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 2. Logika jumlah barang diperbarui menggunakan data backend
+  // Logika jumlah barang untuk kotak atas
   const totalBarang = dataPeramalan.length;
   const barangHabis = dataPeramalan.filter(d => d.stokSekarang === 0).length;
   const barangRestock = dataPeramalan.filter(d => d.stokSekarang > 0 && d.statusPeringatan.includes("RESTOCK")).length;
 
-  // 3. Fungsi badge status diperbarui 
+  // Logika PENYARINGAN TABEL berdasarkan kotak yang diklik
+  const dataTampil = dataPeramalan.filter((item) => {
+    if (filterAktiv === "KOSONG") return item.stokSekarang === 0;
+    if (filterAktiv === "RESTOCK") return item.stokSekarang > 0 && item.statusPeringatan.includes("RESTOCK");
+    return true; // Jika "SEMUA", tampilkan semua data
+  });
+
   const getStatusBadge = (stok: number, statusBackend: string) => {
     if (stok === 0) return <span className="bg-red-50 text-red-600 py-1 px-4 rounded-full font-bold text-xs uppercase tracking-wider border border-red-200 print:border-none print:px-0">Habis</span>;
     if (statusBackend.includes("RESTOCK")) return <span className="bg-orange-50 text-orange-600 py-1 px-4 rounded-full font-bold text-xs uppercase tracking-wider border border-orange-200 print:border-none print:px-0">Restock ⚠️</span>;
@@ -46,9 +57,9 @@ export default function PeramalanPage() {
 
   const handlePrintPDF = () => window.print();
 
-  // 4. Export Excel diperbarui (tambah Batas ROP)
   const handleExportExcel = () => {
-    const dataExcel = dataPeramalan.map((item) => ({
+    // Export data yang sedang TAMPIL saja (sesuai filter)
+    const dataExcel = dataTampil.map((item) => ({
       "Kode Barang": item.kodeBarang,
       "Nama Barang": item.namaBarang,
       "Periode Basis": `${new Date(item.tanggalAwal).toLocaleDateString('id-ID')} - ${new Date(item.tanggalAkhir).toLocaleDateString('id-ID')}`,
@@ -62,7 +73,7 @@ export default function PeramalanPage() {
     const worksheet = xlsx.utils.json_to_sheet(dataExcel);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "Laporan Peramalan");
-    xlsx.writeFile(workbook, "Laporan_Peramalan_Family_Jaya.xlsx");
+    xlsx.writeFile(workbook, `Laporan_Peramalan_${filterAktiv}.xlsx`);
   };
 
   return (
@@ -88,19 +99,39 @@ export default function PeramalanPage() {
         <p className="text-left text-xs mb-4">Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </div>
 
+      {/* --- BAGIAN KOTAK YANG BISA DIKLIK --- */}
       <div className="grid grid-cols-3 gap-6 mb-10 print:mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center shadow-sm print:border-gray-400 print:shadow-none print:p-4">
+        
+        {/* Kotak 1: Total Item */}
+        <div 
+          onClick={() => setFilterAktiv("SEMUA")}
+          className={`bg-white border rounded-xl p-6 text-center shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-1 print:border-gray-400 print:shadow-none print:p-4
+            ${filterAktiv === "SEMUA" ? "ring-4 ring-blue-200 border-blue-500 bg-blue-50/30" : "border-gray-200 hover:border-blue-300"}`}
+        >
           <p className="text-gray-500 font-semibold mb-1 text-sm uppercase tracking-wider print:text-black">Total Item</p>
           <p className="text-4xl font-black text-gray-800 print:text-black">{totalBarang}</p>
         </div>
-        <div className="bg-orange-50 border border-orange-100 rounded-xl p-6 text-center shadow-sm print:bg-white print:border-gray-400 print:shadow-none print:p-4">
+
+        {/* Kotak 2: Perlu Restock */}
+        <div 
+          onClick={() => setFilterAktiv("RESTOCK")}
+          className={`border rounded-xl p-6 text-center shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-1 print:bg-white print:border-gray-400 print:shadow-none print:p-4
+            ${filterAktiv === "RESTOCK" ? "ring-4 ring-orange-200 border-orange-500 bg-orange-100" : "bg-orange-50 border-orange-100 hover:border-orange-300"}`}
+        >
           <p className="text-orange-600 font-semibold mb-1 text-sm uppercase tracking-wider print:text-black">Perlu Restock</p>
           <p className="text-4xl font-black text-orange-700 print:text-black">{barangRestock}</p>
         </div>
-        <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center shadow-sm print:bg-white print:border-gray-400 print:shadow-none print:p-4">
+
+        {/* Kotak 3: Stok Kosong */}
+        <div 
+          onClick={() => setFilterAktiv("KOSONG")}
+          className={`border rounded-xl p-6 text-center shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-1 print:bg-white print:border-gray-400 print:shadow-none print:p-4
+            ${filterAktiv === "KOSONG" ? "ring-4 ring-red-200 border-red-500 bg-red-100" : "bg-red-50 border-red-100 hover:border-red-300"}`}
+        >
           <p className="text-red-600 font-semibold mb-1 text-sm uppercase tracking-wider print:text-black">Stok Kosong</p>
           <p className="text-4xl font-black text-red-700 print:text-black">{barangHabis}</p>
         </div>
+
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm print:border-none print:shadow-none">
@@ -120,10 +151,11 @@ export default function PeramalanPage() {
             <tbody className="bg-white divide-y divide-gray-100 print:divide-black">
               {loading ? (
                 <tr><td colSpan={7} className="text-center py-16 text-gray-400 font-medium">Menarik data analitik terbaru...</td></tr>
-              ) : dataPeramalan.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-16 text-gray-400 font-medium">Belum ada data barang.</td></tr>
+              ) : dataTampil.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-16 text-gray-400 font-medium">Tidak ada data untuk kategori ini.</td></tr>
               ) : (
-                dataPeramalan.map((item) => (
+                // MAP DATA YANG SUDAH DIFILTER DISINI (dataTampil)
+                dataTampil.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors print:hover:bg-white">
                     <td className="px-6 py-5 print:px-2 print:py-3">
                       <div className="text-xs text-gray-400 font-mono mb-1 print:text-black">{item.kodeBarang}</div>

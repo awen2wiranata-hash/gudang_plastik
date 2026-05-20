@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import * as xlsx from "xlsx"; // Pastikan library ini sudah terinstall
 
 type Barang = {
   id: string;
@@ -8,6 +9,13 @@ type Barang = {
   namaBarang: string;
   kategori: string | null;
   stokSekarang: number;
+};
+
+type ImportLogData = {
+  message?: string;
+  sukses: number;
+  gagal: number;
+  detailGagal: string[];
 };
 
 export default function MasterBarangPage() {
@@ -22,6 +30,10 @@ export default function MasterBarangPage() {
   // Mode Edit State
   const [modeEdit, setModeEdit] = useState(false);
   const [idEdit, setIdEdit] = useState("");
+
+  // State untuk Import Excel
+  const [isImporting, setIsImporting] = useState(false);
+const [importLog, setImportLog] = useState<ImportLogData | null>(null);
 
   const fetchBarang = async () => {
     try {
@@ -39,12 +51,12 @@ export default function MasterBarangPage() {
     fetchBarang();
   }, []);
 
-  // FUNGSI SIMPAN (Bisa untuk Tambah Baru ATAU Simpan Edit)
+  // FUNGSI SIMPAN MANUAL
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const url = "/api/barang";
-      const method = modeEdit ? "PUT" : "POST"; // Jika edit gunakan PUT, jika baru gunakan POST
+      const method = modeEdit ? "PUT" : "POST"; 
       const payload = modeEdit 
         ? { id: idEdit, kodeBarang, namaBarang, kategori }
         : { kodeBarang, namaBarang, kategori };
@@ -56,8 +68,8 @@ export default function MasterBarangPage() {
       });
 
       if (res.ok) {
-        batalEdit(); // Kosongkan form
-        fetchBarang(); // Refresh tabel
+        batalEdit(); 
+        fetchBarang(); 
         alert(modeEdit ? "Data berhasil diupdate!" : "Barang berhasil ditambahkan!");
       } else {
         alert("Terjadi kesalahan saat menyimpan data.");
@@ -67,17 +79,59 @@ export default function MasterBarangPage() {
     }
   };
 
-  // FUNGSI SAAT TOMBOL EDIT DIKLIK
+  // FUNGSI IMPORT EXCEL
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportLog(null);
+    const reader = new FileReader();
+
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = xlsx.read(bstr, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Ubah Excel jadi JSON
+        const jsonArray = xlsx.utils.sheet_to_json(worksheet);
+
+        // Kirim ke Backend
+        const res = await fetch("/api/import/barang", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(jsonArray),
+        });
+
+        const result = await res.json();
+        setImportLog(result);
+        
+        // Jika ada yang sukses masuk, refresh tabelnya
+        if (result.sukses > 0) {
+          fetchBarang(); 
+        }
+      } catch (error) {
+        console.error("Gagal import:", error);
+        alert("Gagal membaca file excel. Pastikan format benar.");
+      } finally {
+        setIsImporting(false);
+        e.target.value = ""; // Reset input file
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const klikEdit = (barang: Barang) => {
     setModeEdit(true);
     setIdEdit(barang.id);
     setKodeBarang(barang.kodeBarang);
     setNamaBarang(barang.namaBarang);
     setKategori(barang.kategori || "");
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll ke atas
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
-  // FUNGSI BATAL EDIT
   const batalEdit = () => {
     setModeEdit(false);
     setIdEdit("");
@@ -86,10 +140,8 @@ export default function MasterBarangPage() {
     setKategori("");
   };
 
-  // FUNGSI HAPUS
   const klikHapus = async (id: string, nama: string) => {
     const konfirmasi = confirm(`Apakah Anda yakin ingin menghapus barang "${nama}"?\n\nPERINGATAN: Barang tidak bisa dihapus jika sudah memiliki riwayat transaksi masuk/keluar.`);
-    
     if (konfirmasi) {
       try {
         const res = await fetch(`/api/barang?id=${id}`, { method: "DELETE" });
@@ -107,7 +159,32 @@ export default function MasterBarangPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-gray-800">📦 Master Barang Plastik</h1>
+      {/* HEADER DENGAN TOMBOL IMPORT */}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">📦 Master Barang Plastik</h1>
+        
+        <label className={`flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg cursor-pointer transition-colors shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+          {isImporting ? "Memproses Data..." : "📥 Import Data Excel"}
+          <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
+        </label>
+      </div>
+
+      {/* LOG HASIL IMPORT (Muncul setelah upload file) */}
+      {importLog && (
+        <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+          <p className="font-bold mb-2">📋 Laporan Hasil Import:</p>
+          <p className="text-green-600 font-semibold">✓ Berhasil ditambahkan: {importLog.sukses} barang</p>
+          <p className="text-red-500 font-semibold mb-2">✗ Gagal / Dilewati (Duplikat): {importLog.gagal} barang</p>
+          {importLog.detailGagal && importLog.detailGagal.length > 0 && (
+            <ul className="list-disc list-inside text-gray-500 text-xs max-h-24 overflow-y-auto">
+              {importLog.detailGagal.map((pesan: string, i: number) => (
+                <li key={i}>{pesan}</li>
+              ))}
+            </ul>
+          )}
+          <button onClick={() => setImportLog(null)} className="mt-3 text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">Tutup Pesan</button>
+        </div>
+      )}
 
       {/* FORM INPUT / EDIT */}
       <div className={`p-6 rounded-lg shadow-md mb-8 border ${modeEdit ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
@@ -170,7 +247,6 @@ export default function MasterBarangPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    {/* TOMBOL AKSI */}
                     <div className="flex justify-center gap-3">
                       <button onClick={() => klikEdit(item)} className="text-amber-600 hover:text-amber-900 bg-amber-50 px-3 py-1 rounded-md border border-amber-200">Edit</button>
                       <button onClick={() => klikHapus(item.id, item.namaBarang)} className="text-red-600 hover:text-red-900 bg-red-50 px-3 py-1 rounded-md border border-red-200">Hapus</button>

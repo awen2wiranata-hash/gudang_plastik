@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Select from "react-select";
-import { Eye, Trash2, X, Plus, List, FileText, CheckCircle } from "lucide-react";
+import { Eye, Trash2, X, Plus, List, FileText, CheckCircle, Upload, AlertCircle } from "lucide-react";
+import * as xlsx from "xlsx"; // Pastikan import xlsx
 
 // --- TIPE DATA ---
 type Supplier = { id: string; namaPabrik: string };
@@ -37,6 +38,10 @@ const FormTransaksiTab = ({
       : [{ barangId: "", jumlah: 1 }]
   );
 
+  // State untuk fitur Import Excel
+  const [barangTidakKetemu, setBarangTidakKetemu] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+
   const opsiSupplier = daftarSupplier.map((sup) => ({ value: sup.id, label: sup.namaPabrik }));
   const opsiBarang = daftarBarang.map((brg) => ({
     value: brg.id, label: `${brg.namaBarang} (Stok: ${brg.stokSekarang})`
@@ -53,6 +58,72 @@ const FormTransaksiTab = ({
     isiBaru.splice(index, 1);
     setKeranjang(isiBaru);
   };
+
+  // ==========================================
+  // FITUR IMPORT EXCEL (BARANG MASUK)
+  // ==========================================
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setBarangTidakKetemu([]); // Reset daftar error
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = xlsx.read(bstr, { type: "binary" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const dataExcel = xlsx.utils.sheet_to_json(worksheet);
+
+        const newKeranjang: DetailMasuk[] = [];
+        const notFound: string[] = [];
+
+        // Loop isi excel
+        dataExcel.forEach((row: any) => {
+          const namaDariExcel = String(row["Nama Barang"] || "").trim();
+          const qtyDariExcel = parseInt(row["Jumlah"] || "1");
+
+          if (!namaDariExcel) return;
+
+          // Cari ID barang di master data yang namanya SAMA PERSIS dengan di Excel
+          const matchedBarang = daftarBarang.find(
+            (b) => b.namaBarang.toLowerCase() === namaDariExcel.toLowerCase()
+          );
+
+          if (matchedBarang) {
+            newKeranjang.push({ barangId: matchedBarang.id, jumlah: qtyDariExcel });
+          } else {
+            notFound.push(namaDariExcel); // Catat yang gagal ketemu
+          }
+        });
+
+        // Masukkan ke keranjang form
+        if (newKeranjang.length > 0) {
+          // Jika keranjang saat ini masih kosong/default, timpa saja
+          if (keranjang.length === 1 && keranjang[0].barangId === "") {
+            setKeranjang(newKeranjang);
+          } else {
+            // Jika sudah ada isinya, tambahkan di bawahnya
+            setKeranjang([...keranjang, ...newKeranjang]);
+          }
+        }
+
+        if (notFound.length > 0) {
+          setBarangTidakKetemu(notFound);
+        }
+
+      } catch (error) {
+        alert("Gagal membaca file excel. Pastikan format kolom benar.");
+      } finally {
+        setIsImporting(false);
+        e.target.value = ""; // Reset input file
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+  // ==========================================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +144,8 @@ const FormTransaksiTab = ({
         alert(isEdit ? "✅ Perubahan nota berhasil disimpan!" : "✅ Transaksi Berhasil disimpan!");
         onSuccess();
       } else {
-        alert("Gagal menyimpan transaksi.");
+        const data = await res.json();
+        alert(data.error || "Gagal menyimpan transaksi.");
       }
     } catch (error) {
       console.error(error);
@@ -134,7 +206,29 @@ const FormTransaksiTab = ({
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Rincian Barang Datang</h3>
+          
+          {/* HEADER KERANJANG DENGAN TOMBOL IMPORT EXCEL */}
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Rincian Barang Datang</h3>
+            
+            <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Upload size={14} />
+              {isImporting ? "Membaca..." : "Import Data Masuk (Excel)"}
+              <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
+            </label>
+          </div>
+
+          {/* WARNING JIKA ADA BARANG TIDAK KETEMU DI EXCEL */}
+          {barangTidakKetemu.length > 0 && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div className="flex items-center gap-1.5 font-bold mb-1"><AlertCircle size={16}/> Beberapa barang di Excel tidak ditemukan di Database:</div>
+              <ul className="list-disc list-inside text-xs font-mono">
+                {barangTidakKetemu.map((nm, idx) => <li key={idx}>{nm}</li>)}
+              </ul>
+              <p className="text-xs mt-2 italic">*Barang lainnya yang cocok sudah dimasukkan ke form di bawah.</p>
+            </div>
+          )}
+
           {keranjang.map((item, index) => (
             <div key={index} className="flex gap-4 mb-3 items-center">
               <div className="flex-[3]">
@@ -160,7 +254,7 @@ const FormTransaksiTab = ({
           <div className="mt-4">
             <button type="button" onClick={() => setKeranjang([...keranjang, { barangId: "", jumlah: 1 }])} 
             className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-              <Plus size={16}/> Tambah Baris
+              <Plus size={16}/> Tambah Baris Manual
             </button>
           </div>
         </div>
@@ -170,7 +264,7 @@ const FormTransaksiTab = ({
             Tutup
           </button>
           <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-sm transition-colors flex items-center gap-2">
-            <CheckCircle size={18}/> {isEdit ? "Simpan Perubahan Nota" : "Simpan Transaksi"}
+            <CheckCircle size={18}/> {isEdit ? "Simpan Perubahan Nota" : "Simpan Transaksi Masuk"}
           </button>
         </div>
       </form>
