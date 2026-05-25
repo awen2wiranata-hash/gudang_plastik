@@ -6,20 +6,9 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-// 1. Tabel untuk Manajemen Akun & Login
-model User {
-  id        String   @id @default(cuid())
-  nama      String
-  email     String   @unique
-  password  String   
-  role      Role     @default(USER) 
-  createdAt DateTime @default(now())
-}
 
-enum Role {
-  ADMIN
-  USER
-}
+
+
 
 // 2. Tabel Master Barang (Jenis Plastik)
 model Barang {
@@ -149,4 +138,21 @@ model Peramalan {
   barang        Barang   @relation(fields: [barangId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime @default(now())
+}
+
+// Tambahkan Enum untuk membedakan jabatan
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
+
+// Tambahkan Model (Tabel) untuk Pengguna
+model User {
+  id        String   @id @default(cuid())
+  nama      String   // Nama asli petugas (misal: "Budi Santoso")
+  username  String   @unique // Untuk login (misal: "admin1")
+  password  String   // Akan di-hash/enkripsi, tidak disimpan telanjang
+  role      Role     @default(ADMIN) // Default jabatan adalah Admin biasa
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
