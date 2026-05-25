@@ -26,11 +26,11 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Jika berhasil, muat ulang halaman untuk masuk ke Dashboard
+        // Logika tangguh: dorong ke root lalu refresh untuk memicu perubahan di proxy.ts
         router.push("/");
         router.refresh();
       } else {
-        setError(data.message);
+        setError(data.message || "Username atau Password salah!");
       }
     } catch (err) {
       setError("Terjadi kesalahan jaringan.");
@@ -40,11 +40,11 @@ export default function LoginPage() {
   };
 
   return (
-    // Trik CSS z-[100] agar menutupi Sidebar dan Navbar secara penuh
+    // Mempertahankan trik CSS fixed inset-0 z-[100] aslimu agar menutup layout luar dengan sempurna
     <div className="fixed inset-0 z-[100] bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
         
-        {/* Bagian Atas / Header Login */}
+        {/* 🔵 Bagian Atas / Header Login Khas Kamu */}
         <div className="bg-blue-600 p-8 text-center">
           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Package size={32} className="text-blue-600" />
@@ -53,13 +53,13 @@ export default function LoginPage() {
           <p className="text-blue-100 text-sm mt-1 font-medium">Sistem Manajemen Gudang Terpadu</p>
         </div>
 
-        {/* Bagian Form */}
+        {/* 📄 Bagian Form & Input */}
         <div className="p-8">
           <h2 className="text-xl font-bold text-gray-800 mb-6 text-center">Login Administrator</h2>
           
           {error && (
             <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-6 text-center border border-red-100">
-              {error}
+              ⚠️ {error}
             </div>
           )}
 
@@ -71,7 +71,10 @@ export default function LoginPage() {
                   <User size={18} className="text-gray-400" />
                 </div>
                 <input 
-                  type="text" required value={username} onChange={(e) => setUsername(e.target.value)}
+                  type="text" 
+                  required 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-gray-900" 
                   placeholder="Masukkan username" 
                 />
@@ -85,7 +88,10 @@ export default function LoginPage() {
                   <Lock size={18} className="text-gray-400" />
                 </div>
                 <input 
-                  type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  type="password" 
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-gray-900" 
                   placeholder="••••••••" 
                 />
@@ -93,8 +99,9 @@ export default function LoginPage() {
             </div>
 
             <button 
-              type="submit" disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2 mt-2"
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all flex justify-center items-center gap-2 mt-2 disabled:bg-gray-400"
             >
               {loading ? "Memverifikasi..." : "Masuk ke Sistem"}
               {!loading && <ArrowRight size={18} />}

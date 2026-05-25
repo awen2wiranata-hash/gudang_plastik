@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Select from "react-select";
 import { Eye, Trash2, X, Plus, List, FileText, CheckCircle, Upload, AlertCircle } from "lucide-react";
-import * as xlsx from "xlsx"; // Pastikan import xlsx
+import * as xlsx from "xlsx";
 
 // --- TIPE DATA ---
 type Supplier = { id: string; namaPabrik: string };
@@ -19,15 +19,20 @@ type TabItem = {
 };
 
 // ==========================================
-// KOMPONEN: FORM TRANSAKSI (Bisa untuk Baru & Edit/Rincian)
+// KOMPONEN: FORM TRANSAKSI (Saringan Hak Akses Visual)
 // ==========================================
 const FormTransaksiTab = ({ 
-   dataEdit, daftarSupplier, daftarBarang, onSuccess, onClose, onDelete 
+   dataEdit, daftarSupplier, daftarBarang, onSuccess, onClose, onDelete, userRole 
 }: { 
   tabId: string, dataEdit?: RiwayatMasuk, daftarSupplier: Supplier[], daftarBarang: Barang[], 
-  onSuccess: () => void, onClose: () => void, onDelete?: (id: string, nota: string) => void 
+  onSuccess: () => void, onClose: () => void, onDelete?: (id: string, nota: string) => void,
+  userRole: string | null // 🛠️ Tambahkan userRole di properti komponen
 }) => {
   const isEdit = !!dataEdit;
+  
+  // 🛠️ ATURAN ANTI-FRAUD FRONTEND: Jika dia Admin biasa dan modenya Edit, maka kunci form menjadi READ ONLY
+  const isReadOnly = isEdit && userRole !== "SUPER_ADMIN";
+
   const [nomorNota, setNomorNota] = useState(dataEdit?.nomorNota || "");
   const [supplierId, setSupplierId] = useState(dataEdit?.supplierId || "");
   const [tanggal, setTanggal] = useState(dataEdit?.tanggal ? new Date(dataEdit.tanggal).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
@@ -38,7 +43,6 @@ const FormTransaksiTab = ({
       : [{ barangId: "", jumlah: 1 }]
   );
 
-  // State untuk fitur Import Excel
   const [barangTidakKetemu, setBarangTidakKetemu] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -48,26 +52,26 @@ const FormTransaksiTab = ({
   }));
 
   const ubahKeranjang = (index: number, field: keyof DetailMasuk, value: string | number) => {
+    if (isReadOnly) return; // Kunci jika read-only
     const isiBaru = [...keranjang];
     isiBaru[index] = { ...isiBaru[index], [field]: value };
     setKeranjang(isiBaru);
   };
 
   const hapusBaris = (index: number) => {
+    if (isReadOnly) return; // Kunci jika read-only
     const isiBaru = [...keranjang];
     isiBaru.splice(index, 1);
     setKeranjang(isiBaru);
   };
 
-  // ==========================================
-  // FITUR IMPORT EXCEL (BARANG MASUK)
-  // ==========================================
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsImporting(true);
-    setBarangTidakKetemu([]); // Reset daftar error
+    setBarangTidakKetemu([]);
     
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -80,14 +84,12 @@ const FormTransaksiTab = ({
         const newKeranjang: DetailMasuk[] = [];
         const notFound: string[] = [];
 
-        // Loop isi excel
         dataExcel.forEach((row: any) => {
           const namaDariExcel = String(row["Nama Barang"] || "").trim();
           const qtyDariExcel = parseInt(row["Jumlah"] || "1");
 
           if (!namaDariExcel) return;
 
-          // Cari ID barang di master data yang namanya SAMA PERSIS dengan di Excel
           const matchedBarang = daftarBarang.find(
             (b) => b.namaBarang.toLowerCase() === namaDariExcel.toLowerCase()
           );
@@ -95,17 +97,14 @@ const FormTransaksiTab = ({
           if (matchedBarang) {
             newKeranjang.push({ barangId: matchedBarang.id, jumlah: qtyDariExcel });
           } else {
-            notFound.push(namaDariExcel); // Catat yang gagal ketemu
+            notFound.push(namaDariExcel);
           }
         });
 
-        // Masukkan ke keranjang form
         if (newKeranjang.length > 0) {
-          // Jika keranjang saat ini masih kosong/default, timpa saja
           if (keranjang.length === 1 && keranjang[0].barangId === "") {
             setKeranjang(newKeranjang);
           } else {
-            // Jika sudah ada isinya, tambahkan di bawahnya
             setKeranjang([...keranjang, ...newKeranjang]);
           }
         }
@@ -118,15 +117,16 @@ const FormTransaksiTab = ({
         alert("Gagal membaca file excel. Pastikan format kolom benar.");
       } finally {
         setIsImporting(false);
-        e.target.value = ""; // Reset input file
+        e.target.value = "";
       }
     };
     reader.readAsBinaryString(file);
   };
-  // ==========================================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return alert("Akses Ditolak: Akun Staf Gudang tidak diizinkan mengubah riwayat nota!");
+    
     const barangValid = keranjang.filter(k => k.barangId !== "" && Number(k.jumlah) > 0);
     if (barangValid.length === 0) return alert("Pilih minimal 1 barang valid!");
     if (!supplierId) return alert("Pilih pemasok!");
@@ -159,12 +159,14 @@ const FormTransaksiTab = ({
       <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
         <h2 className="text-lg font-bold flex items-center gap-2 text-gray-800">
           {isEdit ? <Eye size={20} className="text-blue-500"/> : <FileText size={20} className="text-blue-500"/>}
-          {isEdit ? `Rincian / Edit Nota: ${dataEdit.nomorNota}` : "Form Penerimaan Baru"}
+          {isEdit 
+            ? `${userRole === "SUPER_ADMIN" ? "Rincian / Edit Nota" : "Rincian Nota (View Only)"}: ${dataEdit.nomorNota}` 
+            : "Form Penerimaan Baru"}
         </h2>
         
-        {/* TOMBOL AKSI DI KANAN ATAS */}
         <div className="flex items-center gap-2">
-          {isEdit && onDelete && dataEdit && (
+          {/* 🔒 SARI TOMBOL HAPUS: Hanya boleh muncul jika yang buka adalah SUPER_ADMIN */}
+          {isEdit && onDelete && dataEdit && userRole === "SUPER_ADMIN" && (
             <button 
               type="button" 
               onClick={() => onDelete(dataEdit.id, dataEdit.nomorNota)} 
@@ -187,45 +189,44 @@ const FormTransaksiTab = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="md:col-span-1">
             <label className="block text-sm font-bold text-gray-600 mb-1">Tanggal</label>
-            <input type="date" required value={tanggal} onChange={(e) => setTanggal(e.target.value)} 
-            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+            <input type="date" required disabled={isReadOnly} value={tanggal} onChange={(e) => setTanggal(e.target.value)} 
+            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" />
           </div>
           <div className="md:col-span-1">
             <label className="block text-sm font-bold text-gray-600 mb-1">No. Nota / Surat Jalan</label>
-            <input type="text" required value={nomorNota} onChange={(e) => setNomorNota(e.target.value)} 
-            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="INV-001" />
+            <input type="text" required disabled={isReadOnly} value={nomorNota} onChange={(e) => setNomorNota(e.target.value)} 
+            className="text-black w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" placeholder="INV-001" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-bold text-gray-600 mb-1">Pemasok / Pabrik</label>
             <Select 
               options={opsiSupplier} value={opsiSupplier.find(opt => opt.value === supplierId) || null}
-              onChange={(p) => setSupplierId(p?.value || "")} placeholder="Ketik nama pabrik..." isSearchable
-              styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem', borderColor: '#d1d5db', padding: '1px' }) }}
+              onChange={(p) => setSupplierId(p?.value || "")} placeholder="Ketik nama pabrik..." isSearchable isDisabled={isReadOnly}
+              styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem', borderColor: '#d1d5db', padding: '1px', backgroundColor: isReadOnly ? '#f3f4f6' : 'white' }) }}
             />
           </div>
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          
-          {/* HEADER KERANJANG DENGAN TOMBOL IMPORT EXCEL */}
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Rincian Barang Datang</h3>
             
-            <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
-              <Upload size={14} />
-              {isImporting ? "Membaca..." : "Import Data Masuk (Excel)"}
-              <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
-            </label>
+            {/* Sembunyikan tombol import excel jika read-only */}
+            {!isReadOnly && (
+              <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Upload size={14} />
+                {isImporting ? "Membaca..." : "Import Data Masuk (Excel)"}
+                <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
+              </label>
+            )}
           </div>
 
-          {/* WARNING JIKA ADA BARANG TIDAK KETEMU DI EXCEL */}
           {barangTidakKetemu.length > 0 && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               <div className="flex items-center gap-1.5 font-bold mb-1"><AlertCircle size={16}/> Beberapa barang di Excel tidak ditemukan di Database:</div>
               <ul className="list-disc list-inside text-xs font-mono">
                 {barangTidakKetemu.map((nm, idx) => <li key={idx}>{nm}</li>)}
               </ul>
-              <p className="text-xs mt-2 italic">*Barang lainnya yang cocok sudah dimasukkan ke form di bawah.</p>
             </div>
           )}
 
@@ -234,38 +235,49 @@ const FormTransaksiTab = ({
               <div className="flex-[3]">
                 <Select 
                   options={opsiBarang} value={opsiBarang.find(opt => opt.value === item.barangId) || null}
-                  onChange={(p) => ubahKeranjang(index, "barangId", p?.value || "")} placeholder="Ketik/Cari nama barang plastik..." isSearchable
-                  styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem' }) }}
+                  onChange={(p) => ubahKeranjang(index, "barangId", p?.value || "")} placeholder="Cari nama barang..." isSearchable isDisabled={isReadOnly}
+                  styles={{ control: (base) => ({ ...base, borderRadius: '0.5rem', backgroundColor: isReadOnly ? '#f3f4f6' : 'white' }) }}
                 />
               </div>
               <div className="flex-1">
-                <input type="number" min="1" required value={item.jumlah} 
+                <input type="number" min="1" required disabled={isReadOnly} value={item.jumlah} 
                 onChange={(e) => ubahKeranjang(index, "jumlah", e.target.value ? Number(e.target.value) : "")} 
-                className=" text-black w-full border border-gray-300 rounded-lg p-[9px] outline-none focus:border-blue-500" placeholder="Qty" />
+                className="text-black w-full border border-gray-300 rounded-lg p-[9px] outline-none focus:border-blue-500 disabled:bg-gray-100" placeholder="Qty" />
               </div>
               <div className="w-10 flex justify-center">
-                {index > 0 && (
+                {index > 0 && !isReadOnly && (
                   <button type="button" onClick={() => hapusBaris(index)} 
                   className="text-red-500 hover:bg-red-100 p-2 rounded-lg transition-colors"><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
           ))}
-          <div className="mt-4">
-            <button type="button" onClick={() => setKeranjang([...keranjang, { barangId: "", jumlah: 1 }])} 
-            className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-              <Plus size={16}/> Tambah Baris Manual
-            </button>
-          </div>
+
+          {!isReadOnly && (
+            <div className="mt-4">
+              <button type="button" onClick={() => setKeranjang([...keranjang, { barangId: "", jumlah: 1 }])} 
+              className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                <Plus size={16}/> Tambah Baris Manual
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-3 px-6 rounded-lg transition-colors">
             Tutup
           </button>
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-sm transition-colors flex items-center gap-2">
-            <CheckCircle size={18}/> {isEdit ? "Simpan Perubahan Nota" : "Simpan Transaksi Masuk"}
-          </button>
+          
+          {/* 🔒 SARI TOMBOL SUBMIT: Jika Admin membuka rincian lama, sembunyikan tombol simpan aksinya */}
+          {!isReadOnly ? (
+            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+              <CheckCircle size={18}/> {isEdit ? "Simpan Perubahan Nota" : "Simpan Transaksi Masuk"}
+            </button>
+          ) : (
+            <div className="text-xs text-gray-400 self-center italic font-medium bg-gray-100 px-4 py-3 rounded-lg border border-gray-200">
+              ℹ️ Anda masuk sebagai staf gudang. Riwayat nota dikunci untuk pengeditan.
+            </div>
+          )}
         </div>
       </form>
     </div>
@@ -280,6 +292,9 @@ export default function TransaksiMasukPage() {
   const [daftarBarang, setDaftarBarang] = useState<Barang[]>([]);
   const [riwayatMasuk, setRiwayatMasuk] = useState<RiwayatMasuk[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // 🛠️ State baru untuk melacak role pengguna di halaman ini
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const [tabs, setTabs] = useState<TabItem[]>([{ id: "riwayat", title: "Riwayat Penerimaan", type: "RIWAYAT" }]);
   const [activeTab, setActiveTab] = useState<string>("riwayat");
@@ -299,7 +314,23 @@ export default function TransaksiMasukPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+
+    // 🛠️ AMBIL DATA ROLE DARI COOKIE TOKEN SAAT HALAMAN DIMUAT
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
+    };
+
+    const token = getCookie("token");
+    if (token) {
+      const [_, role] = decodeURIComponent(token).split("|");
+      setUserRole(role);
+    }
+  }, []);
 
   const bukaTabBaru = () => {
     const newId = `form-${Date.now()}`;
@@ -308,7 +339,6 @@ export default function TransaksiMasukPage() {
     setActiveTab(newId);
   };
 
-  // Fungsi saat tombol "Buka" diklik dari tabel
   const bukaTabEdit = (riwayat: RiwayatMasuk) => {
     const existingTab = tabs.find(t => t.dataEdit?.id === riwayat.id);
     if (existingTab) {
@@ -333,13 +363,15 @@ export default function TransaksiMasukPage() {
   };
 
   const klikHapus = async (id: string, nota: string) => {
+    if (userRole !== "SUPER_ADMIN") return alert("Akses Ilegal: Hanya Owner yang bisa menghapus nota.");
+    
     if (confirm(`PENGHAPUSAN PERMANEN\n\nApakah Anda yakin ingin menghapus transaksi nota ${nota}?\nStok barang yang terlanjur masuk dari nota ini akan ditarik (dikurangi) kembali secara otomatis.`)) {
       try {
         const res = await fetch(`/api/transaksi-masuk?id=${id}`, { method: "DELETE" });
         if (res.ok) {
           alert("Transaksi berhasil dihapus dan stok telah dikembalikan!");
           fetchData();
-          tutupTab(`edit-${id}`); // Otomatis menutup tab edit jika sedang terbuka
+          tutupTab(`edit-${id}`);
         } else {
           alert("Gagal menghapus transaksi.");
         }
@@ -412,7 +444,6 @@ export default function TransaksiMasukPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      {/* TOMBOL BUKA YANG LANGSUNG MENGARAH KE TAB EDIT/RINCIAN */}
                       <button 
                         onClick={() => bukaTabEdit(riwayat)} 
                         className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
@@ -433,7 +464,8 @@ export default function TransaksiMasukPage() {
             <FormTransaksiTab 
               tabId={tab.id} dataEdit={tab.dataEdit} daftarSupplier={daftarSupplier} daftarBarang={daftarBarang}
               onSuccess={() => handleTransaksiSukses(tab.id)} onClose={() => tutupTab(tab.id)}
-              onDelete={klikHapus} // Mengirimkan fungsi Hapus ke dalam komponen Form
+              onDelete={klikHapus}
+              userRole={userRole} // 🛠️ Teruskan userRole ke komponen FormTransaksiTab
             />
           </div>
         ))}

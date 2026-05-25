@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers"; // 🛠️ Tambah import cookies
 
-// GET: Mengambil riwayat
+// GET: Mengambil riwayat (Semua role bisa melihat)
 export async function GET() {
   try {
     const riwayatMasuk = await prisma.transaksiMasuk.findMany({
@@ -17,7 +18,7 @@ export async function GET() {
   }
 }
 
-// POST: Tambah Transaksi Baru
+// POST: Tambah Transaksi Baru (Semua role bisa menginput nota operasional)
 export async function POST(request: Request) {
   try {
     const { nomorNota, supplierId, detailBarang, tanggal } = await request.json();
@@ -29,7 +30,6 @@ export async function POST(request: Request) {
           supplierId,
           tanggal: tanggal ? new Date(tanggal) : new Date(),
           detailBarang: {
-            // PERBAIKAN DI SINI: Mengganti any dengan tipe yang jelas
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
               barangId: item.barangId,
               jumlah: Number(item.jumlah),
@@ -55,13 +55,25 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: Edit Transaksi (Rollback stok lama -> Terapkan stok baru)
+// 🔒 PUT: Edit Transaksi (HANYA BOLEH SUPER_ADMIN / OWNER)
 export async function PUT(request: Request) {
   try {
+    // 🛠️ VALIDASI BACKEND: Cek tiket token di server
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    
+    if (!token) {
+      return NextResponse.json({ error: "Akses ditolak, silakan login kembali" }, { status: 401 });
+    }
+
+    const [_, userRole] = decodeURIComponent(token).split("|");
+    if (userRole !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Akses ilegal! Hanya Owner yang boleh mengedit transaksi" }, { status: 403 });
+    }
+
     const { id, nomorNota, supplierId, detailBarang, tanggal } = await request.json();
 
     const hasil = await prisma.$transaction(async (tx) => {
-      // 1. Cari transaksi lama
       const txLama = await tx.transaksiMasuk.findUnique({
         where: { id },
         include: { detailBarang: true }
@@ -69,7 +81,7 @@ export async function PUT(request: Request) {
 
       if (!txLama) throw new Error("Transaksi tidak ditemukan");
 
-      // 2. Rollback (kurangi) stok lama
+      // Rollback (kurangi) stok lama
       for (const item of txLama.detailBarang) {
         await tx.barang.update({
           where: { id: item.barangId },
@@ -77,7 +89,7 @@ export async function PUT(request: Request) {
         });
       }
 
-      // 3. Update Nota dan Ganti Detail Barang
+      // Update Nota dan Ganti Detail Barang
       const txUpdate = await tx.transaksiMasuk.update({
         where: { id },
         data: {
@@ -85,8 +97,7 @@ export async function PUT(request: Request) {
           supplierId,
           tanggal: tanggal ? new Date(tanggal) : new Date(),
           detailBarang: {
-            deleteMany: {}, // Hapus detail lama
-            // PERBAIKAN DI SINI: Mengganti any dengan tipe yang jelas
+            deleteMany: {},
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
               barangId: item.barangId,
               jumlah: Number(item.jumlah),
@@ -96,7 +107,7 @@ export async function PUT(request: Request) {
         }
       });
 
-      // 4. Terapkan (tambah) stok baru
+      // Terapkan (tambah) stok baru
       for (const item of detailBarang) {
         await tx.barang.update({
           where: { id: item.barangId },
@@ -109,7 +120,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(hasil, { status: 200 });
     
-  // PERBAIKAN DI SINI: Mengganti any menjadi unknown
   } catch (error: unknown) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -118,15 +128,31 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE: Hapus Transaksi (Rollback stok otomatis)
+// 🔒 DELETE: Hapus Transaksi (HANYA BOLEH SUPER_ADMIN / OWNER)
 export async function DELETE(request: Request) {
   try {
+    // 🛠️ VALIDASI BACKEND: Cek tiket token di server
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    
+    if (!token) {
+      return NextResponse.json({ error: "Akses ditolak, silakan login kembali" }, { status: 401 });
+    }
+
+    const [_, userRole] = decodeURIComponent(token).split("|");
+    if (userRole !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Akses ilegal! Hanya Owner yang boleh menghapus transaksi" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: "ID tidak ada" }, { status: 400 });
 
     await prisma.$transaction(async (tx) => {
-      const txLama = await tx.transaksiMasuk.findUnique({
+      const txLama = await tx.findUnique({ // Perbaikan kecil: langsung tx.transaksiMasuk
+        where: { id },
+        include: { detailBarang: true }
+      } as any) || await tx.transaksiMasuk.findUnique({
         where: { id },
         include: { detailBarang: true }
       });

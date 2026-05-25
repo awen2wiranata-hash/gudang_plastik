@@ -1,168 +1,123 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Clock, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-type Barang = { id: string; namaBarang: string; stokSekarang: number };
-type Riwayat = { id: string; nomorNota: string; tanggal: string; tipe: "MASUK" | "KELUAR" };
-
-export default function BerandaPage() {
-  const [totalBarang, setTotalBarang] = useState(0);
-  const [stokMenipis, setStokMenipis] = useState(0);
-  const [aktivitas, setAktivitas] = useState<Riwayat[]>([]);
+export default function DashboardPage() {
+  const router = useRouter();
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Ambil data token lewat cara aman di Client Side karena middleware mati
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        // Ambil data dari API yang sudah kita buat sebelumnya
-        const [resBarang, resMasuk, resKeluar] = await Promise.all([
-          fetch("/api/barang"),
-          fetch("/api/transaksi-masuk"),
-          fetch("/api/transaksi-keluar")
-        ]);
-
-        const dataBarang = await resBarang.json();
-        const dataMasuk = await resMasuk.json();
-        const dataKeluar = await resKeluar.json();
-
-        if (Array.isArray(dataBarang)) {
-          setTotalBarang(dataBarang.length);
-          // Anggap stok di bawah 50 itu menipis (Bisa disesuaikan nanti)
-          setStokMenipis(dataBarang.filter((b: Barang) => b.stokSekarang < 50).length);
-        }
-
-        // Gabungkan transaksi masuk dan keluar untuk timeline aktivitas
-        let gabunganAktivitas: Riwayat[] = [];
-        
-        if (Array.isArray(dataMasuk)) {
-          gabunganAktivitas = [...gabunganAktivitas, ...dataMasuk.map(m => ({
-            id: m.id, nomorNota: m.nomorNota, tanggal: m.tanggal, tipe: "MASUK" as const
-          }))];
-        }
-        
-        if (Array.isArray(dataKeluar)) {
-          gabunganAktivitas = [...gabunganAktivitas, ...dataKeluar.map(k => ({
-            id: k.id, nomorNota: k.nomorNota, tanggal: k.tanggal, tipe: "KELUAR" as const
-          }))];
-        }
-
-        // Urutkan dari yang terbaru, lalu ambil 5 teratas
-        gabunganAktivitas.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
-        setAktivitas(gabunganAktivitas.slice(0, 5));
-
-      } catch (error) {
-        console.error("Gagal mengambil data beranda", error);
-      } finally {
-        setLoading(false);
-      }
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
     };
 
-    fetchDashboardData();
-  }, []);
+    const token = getCookie("token");
+
+    if (!token) {
+      router.push("/login");
+    } else {
+      const [_, role] = decodeURIComponent(token).split("|");
+      setUserRole(role);
+      setLoading(false);
+    }
+  }, [router]);
+
+  // Fungsi Pembersih Token saat Tombol Keluar diklik
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        router.push("/login");
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Gagal logout:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold">
+        Memuat Data Autentikasi Gudang...
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      
-      {/* HEADER BERANDA */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Selamat Datang, Wendy! 👋</h1>
-        <p className="text-gray-500 mt-2 font-medium">Ini adalah ringkasan aktivitas gudang Family Jaya hari ini.</p>
-      </div>
-
-      {/* KARTU STATISTIK */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between group hover:border-blue-300 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="bg-blue-50 p-3 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              <Package size={24} />
-            </div>
-          </div>
-          <div>
-            <p className="text-3xl font-black text-gray-800">{loading ? "..." : totalBarang}</p>
-            <p className="text-sm text-gray-500 font-semibold mt-1 uppercase tracking-wider">Total Jenis Barang</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between group hover:border-amber-300 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="bg-amber-50 p-3 rounded-lg text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-              <AlertTriangle size={24} />
-            </div>
-          </div>
-          <div>
-            <p className="text-3xl font-black text-gray-800">{loading ? "..." : stokMenipis}</p>
-            <p className="text-sm text-gray-500 font-semibold mt-1 uppercase tracking-wider">Stok Menipis (&lt;50)</p>
-          </div>
-        </div>
-
-        <Link href="/transaksi-masuk" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between group hover:border-emerald-300 transition-colors cursor-pointer">
-          <div className="flex justify-between items-start mb-4">
-            <div className="bg-emerald-50 p-3 rounded-lg text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-              <ArrowDownToLine size={24} />
-            </div>
-            <ChevronRight size={20} className="text-gray-300 group-hover:text-emerald-500" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-gray-800">Catat Masuk</p>
-            <p className="text-sm text-gray-500 font-medium mt-1">Penerimaan dari pabrik</p>
-          </div>
-        </Link>
-
-        <Link href="/transaksi-keluar" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between group hover:border-rose-300 transition-colors cursor-pointer">
-          <div className="flex justify-between items-start mb-4">
-            <div className="bg-rose-50 p-3 rounded-lg text-rose-600 group-hover:bg-rose-500 group-hover:text-white transition-colors">
-              <ArrowUpFromLine size={24} />
-            </div>
-            <ChevronRight size={20} className="text-gray-300 group-hover:text-rose-500" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-gray-800">Catat Keluar</p>
-            <p className="text-sm text-gray-500 font-medium mt-1">Penjualan ke pelanggan</p>
-          </div>
-        </Link>
-
-      </div>
-
-      {/* TIMELINE AKTIVITAS TERAKHIR */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-          <Clock className="text-blue-500" size={20} />
-          <h2 className="text-lg font-bold text-gray-800">Aktivitas Transaksi Terakhir</h2>
+    <div className="min-h-screen bg-gray-100 p-6 text-gray-800">
+      {/* Header Dashboard */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-blue-900">Gudang Family Jaya</h1>
+          <p className="text-sm text-gray-500 font-medium">
+            Anda masuk sebagai: <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-xs">{userRole}</span>
+          </p>
         </div>
         
-        <div className="p-6">
-          {loading ? (
-            <p className="text-center text-gray-500 py-4 animate-pulse">Memuat riwayat...</p>
-          ) : aktivitas.length === 0 ? (
-            <p className="text-center text-gray-500 py-4">Belum ada aktivitas transaksi.</p>
-          ) : (
-            <div className="space-y-6">
-              {aktivitas.map((item, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div className={`mt-1 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                    item.tipe === 'MASUK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                  }`}>
-                    {item.tipe === 'MASUK' ? <ArrowDownToLine size={18} /> : <ArrowUpFromLine size={18} />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">
-                      {item.tipe === 'MASUK' ? 'Penerimaan Barang' : 'Pengiriman Barang'} 
-                      <span className="text-blue-600 ml-2">#{item.nomorNota}</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(item.tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Tombol diganti menggunakan button dengan fungsi handleLogout */}
+        <button 
+          onClick={handleLogout} 
+          className="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-all shadow"
+        >
+          Keluar Aplikasi
+        </button>
+      </div>
+
+      {/* GRID MENU UTAMA */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h3 className="font-bold text-lg text-gray-700 mb-1">📦 Stok Barang</h3>
+          <p className="text-xs text-gray-400 mb-4">Melihat sisa stok plastik aktual di rak gudang.</p>
+          <button className="w-full bg-blue-600 text-white text-xs font-bold py-2 rounded-lg">Buka Tabel Stok</button>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h3 className="font-bold text-lg text-gray-700 mb-1">🔄 Transaksi Harian</h3>
+          <p className="text-xs text-gray-400 mb-4">Input nota barang masuk dan barang keluar.</p>
+          <button className="w-full bg-blue-600 text-white text-xs font-bold py-2 rounded-lg">Mulai Input</button>
+        </div>
+
+        <div className="bg-purple-50 p-5 rounded-2xl shadow-sm border border-purple-200">
+          <h3 className="font-bold text-lg text-purple-900 mb-1">📈 Peramalan (SMA)</h3>
+          <p className="text-xs text-purple-500 mb-4">Prediksi hitungan matematika stok untuk minggu depan.</p>
+          <button className="w-full bg-purple-600 text-white text-xs font-bold py-2 rounded-lg">Lihat Grafik SMA</button>
+        </div>
+
+        <div className="bg-amber-50 p-5 rounded-2xl shadow-sm border border-amber-200">
+          <h3 className="font-bold text-lg text-amber-900 mb-1">🚨 Peringatan ROP</h3>
+          <p className="text-xs text-amber-500 mb-4">Alarm batas kritis untuk pemesanan kembali ke pabrik.</p>
+          <button className="w-full bg-amber-600 text-white text-xs font-bold py-2 rounded-lg">Cek Batas ROP</button>
         </div>
       </div>
 
+      {/* TABEL RIWAYAT ANTI-FRAUD */}
+      <div className="mt-8 bg-white border rounded-xl p-4">
+        <h2 className="font-bold mb-4">Riwayat Nota Terakhir</h2>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-50"><th className="p-2">No Nota</th><th className="p-2">Aksi</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="p-2">NOTA-2026-001</td>
+              <td className="p-2 space-x-2">
+                <button className="text-blue-600 font-medium">👁️ Buka</button>
+                {userRole === "SUPER_ADMIN" && (
+                  <button className="text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                    🗑️ Hapus (Rollback Stok)
+                  </button>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
