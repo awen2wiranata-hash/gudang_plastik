@@ -3,10 +3,11 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation"; // 🛠️ Tambah usePathname
+import { useRouter, usePathname } from "next/navigation"; 
+import { useEffect, useState } from "react"; 
 import { 
   Package, Building2, Users, ArrowDownToLine, ArrowUpFromLine, 
-  TrendingUp, Search, Bell, ChevronDown, LogOut 
+  TrendingUp, Search, Bell, ChevronDown, LogOut, ShieldAlert 
 } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,10 +18,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
-  const pathname = usePathname(); // 🛠️ Ambil URL yang sedang aktif
+  const pathname = usePathname(); 
+  const [userRole, setUserRole] = useState<string>("ADMIN"); 
 
   // Cek apakah pengguna sedang membuka halaman login
   const isLoginPage = pathname === "/login";
+
+  // 🛠️ AMBIL DATA ROLE DARI COOKIE SAAT HALAMAN DIMUAT (VERSI AMAN DARI CASCADING RENDER)
+  useEffect(() => {
+    if (!isLoginPage) {
+      const cookies = document.cookie.split("; ");
+      const tokenCookie = cookies.find((row) => row.startsWith("token="));
+      
+      if (tokenCookie) {
+        const tokenValue = decodeURIComponent(tokenCookie.split("=")[1]);
+        const parts = tokenValue.split("|");
+        if (parts.length > 1) {
+          // 🛡️ Membungkus dengan requestAnimationFrame untuk menghindari penumpukan render
+          requestAnimationFrame(() => {
+            setUserRole(parts[1]);
+          });
+        }
+      }
+    }
+  }, [pathname, isLoginPage]);
 
   const handleLogout = async () => {
     if(confirm("Apakah Anda yakin ingin keluar?")) {
@@ -40,12 +61,10 @@ export default function RootLayout({
         
         {/* 🔑 JALUR FILTER KONDISI LAYOUT */}
         {isLoginPage ? (
-          /* 🟢 KONDISI 1: Jika di halaman login, tampilkan POLOSAN total */
           <div className="min-h-screen bg-gray-50">
             {children}
           </div>
         ) : (
-          /* 🔵 KONDISI 2: Jika di halaman dashboard/dalam, tampilkan SIDEBAR & NAVBAR aslimu */
           <div className="flex h-screen overflow-hidden print:h-auto print:block">
             
             {/* SIDEBAR ASLI */}
@@ -61,6 +80,7 @@ export default function RootLayout({
               
               <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col justify-between">
                 <div>
+                  {/* MASTER DATA */}
                   <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Master Data</p>
                     <ul className="space-y-1">
@@ -69,6 +89,8 @@ export default function RootLayout({
                       <li><Link href="/customer" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Users size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pelanggan</Link></li>
                     </ul>
                   </div>
+
+                  {/* TRANSAKSI */}
                   <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Transaksi</p>
                     <ul className="space-y-1">
@@ -76,12 +98,34 @@ export default function RootLayout({
                       <li><Link href="/transaksi-keluar" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowUpFromLine size={20} className="text-rose-500" />Penjualan Keluar</Link></li>
                     </ul>
                   </div>
-                  <div>
+
+                  {/* ANALITIK */}
+                  <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Analitik</p>
                     <ul className="space-y-1">
                       <li><Link href="/peramalan" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 transition-colors"><TrendingUp size={20} className="text-blue-600" />Peramalan SMA</Link></li>
                     </ul>
                   </div>
+
+                  {/* ======================================================= */}
+                  {/* 🔒 🛡️ MENU KHUSUS OWNER: HANYA TAMPIL UNTUK SUPER_ADMIN */}
+                  {/* ======================================================= */}
+                  {userRole === "SUPER_ADMIN" && (
+                    <div className="mt-6 pt-4 border-t border-gray-100">
+                      <p className="px-4 text-xs font-bold text-amber-600 uppercase tracking-wider mb-3">Sistem Keamanan</p>
+                      <ul className="space-y-1">
+                        <li>
+                          <Link 
+                            href="/dashboard/audit-log" 
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors group"
+                          >
+                            <ShieldAlert size={20} className="text-amber-600 group-hover:scale-110 transition-transform" />
+                            CCTV Audit Log
+                          </Link>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* TOMBOL LOGOUT */}
@@ -113,7 +157,9 @@ export default function RootLayout({
                   <div className="flex items-center gap-3 pl-6 border-l border-gray-200 cursor-pointer group">
                     <div className="text-right hidden md:block">
                       <p className="text-sm font-bold text-gray-700 group-hover:text-blue-600">Wendy Wiranata</p>
-                      <p className="text-xs text-gray-500 font-medium">Administrator</p>
+                      <p className="text-xs text-gray-500 font-medium">
+                        {userRole === "SUPER_ADMIN" ? "Owner System" : "Staf Gudang"}
+                      </p>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden"><span className="font-bold text-indigo-700">W</span></div>
                     <ChevronDown size={16} className="text-gray-400" />

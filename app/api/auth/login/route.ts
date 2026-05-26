@@ -40,8 +40,8 @@ export async function POST(request: Request) {
 
     response.cookies.set({
       name: "token",
-      value: tokenValue, // Sekarang isinya dinamis (bisa SUPER_ADMIN atau ADMIN)
-      httpOnly: true,
+      value: tokenValue, 
+      httpOnly: false, // 🛠️ FIX: Ubah ke false agar layout.tsx bisa membaca role di frontend
       path: "/",
       maxAge: 60 * 60 * 24, // 1 Hari
     });

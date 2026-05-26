@@ -156,3 +156,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ==========================================
+// 🛡️ 🕵️ FITUR TAMBAHAN KEAMANAN: MONITOR AUDIT LOG (FORENSIK DIGITAL)
+// ==========================================
+model AuditLog {
+  id        String   @id @default(cuid())
+  username  String   // Nama akun petugas (Budi, Admin, dll)
+  role      String   // Jabatan admin (SUPER_ADMIN / ADMIN)
+  aksi      String   // Aktivitas (Contoh: "UPDATE_BARANG_MASUK", "DELETE_PENJUALAN")
+  nomorNota String?  // Nomor nota transaksi terkait (bisa null jika data master)
+  dataLama  String?  // Teks JSON kondisi data sebelum dirubah (untuk forensik)
+  dataBaru  String?  // Teks JSON kondisi data sesudah dirubah
+  tanggal   DateTime @default(now()) // Waktu kejadian otomatis
+}

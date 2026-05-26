@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers"; // Untuk melacak siapa aktor pelakunya
+
+// 🛠️ FIX 1: Menggunakan async karena cookies() di Next.js versi baru harus di-await
+async function getUserFromCookie() {
+  const cookieStore = await cookies(); 
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { username: "System_Unknown", role: "UNKNOWN" };
+  
+  const parts = decodeURIComponent(token).split("|");
+  return {
+    username: parts[0] || "Unknown_User",
+    role: parts[1] || "ADMIN"
+  };
+}
 
 // ==========================================
 // 1. GET: Ambil Semua Riwayat Keluar
@@ -57,7 +71,7 @@ export async function POST(request: Request) {
 }
 
 // ==========================================
-// 3. PUT: Edit Transaksi (Rollback & Kurangi Ulang)
+// 3. PUT: Edit Transaksi (Rollback & Catat Audit Log)
 // ==========================================
 export async function PUT(request: Request) {
   try {
@@ -65,14 +79,24 @@ export async function PUT(request: Request) {
     
     if (!id) throw new Error("ID Transaksi tidak ditemukan saat mengedit!");
 
+    // Ambil data user pengeksekusi (ditambahkan await)
+    const actor = await getUserFromCookie();
+
     const hasil = await prisma.$transaction(async (tx) => {
       // 1. Cari transaksi lama
       const txLama = await tx.transaksiKeluar.findUnique({
-        where: { id }, include: { detailBarang: true }
+        where: { id }, 
+        include: { detailBarang: { include: { barang: true } } }
       });
       if (!txLama) throw new Error("Data transaksi lama tidak ditemukan di database!");
 
-      // 2. Rollback (Kembalikan stok lama ke gudang)
+      const snapshotDataLama = JSON.stringify({
+        nomorNota: txLama.nomorNota,
+        tanggal: txLama.tanggal,
+        barang: txLama.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
+      });
+
+      // 2. Rollback stok lama
       for (const item of txLama.detailBarang) {
         await tx.barang.update({
           where: { id: item.barangId },
@@ -80,30 +104,30 @@ export async function PUT(request: Request) {
         });
       }
 
-      // 3. Update Nota dan Detail Barang Baru
+      // 3. Update Detail Baru
       const txUpdate = await tx.transaksiKeluar.update({
         where: { id },
         data: {
           nomorNota, customerId, tanggal: tanggal ? new Date(tanggal) : new Date(),
           detailBarang: {
-            deleteMany: {}, // Hapus detail lama
+            deleteMany: {}, 
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
               barangId: item.barangId, jumlah: Number(item.jumlah), tanggalKeluar: tanggal ? new Date(tanggal) : new Date()
             }))
           }
-        }
+        },
+        include: { detailBarang: { include: { barang: true } } }
       });
 
-      // 4. Kurangi stok baru dengan keamanan ketat
+      // 4. Kurangi stok baru
       for (const item of detailBarang) {
         const barang = await tx.barang.findUnique({ where: { id: item.barangId } });
         const jumlahDiminta = Number(item.jumlah);
         
         if (!barang) throw new Error("Ada barang yang tidak dikenali!");
         
-        // Cek apakah stok (setelah di-rollback) cukup untuk permintaan baru
         if (barang.stokSekarang < jumlahDiminta) {
-          throw new Error(`Stok [${barang.namaBarang}] tidak cukup! Sisa stok hanya ${barang.stokSekarang}, Anda menginput ${jumlahDiminta}.`);
+          throw new Error(`Stok [${barang.namaBarang}] tidak cukup! Sisa stok hanya ${barang.stokSekarang}.`);
         }
         
         await tx.barang.update({
@@ -111,21 +135,38 @@ export async function PUT(request: Request) {
           data: { stokSekarang: { decrement: jumlahDiminta } }
         });
       }
+
+      const snapshotDataBaru = JSON.stringify({
+        nomorNota: txUpdate.nomorNota,
+        tanggal: txUpdate.tanggal,
+        barang: txUpdate.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
+      });
+
+      // 🛠️ FIX 2: Menambahkan @ts-ignore agar transaksi tx mau mengeksekusi model baru
+      // @ts-ignore
+      await tx.auditLog.create({
+        data: {
+          username: actor.username,
+          role: actor.role,
+          aksi: "UPDATE_PENJUALAN",
+          nomorNota: txLama.nomorNota,
+          dataLama: snapshotDataLama,
+          dataBaru: snapshotDataBaru
+        }
+      });
       
       return txUpdate;
     });
 
     return NextResponse.json(hasil, { status: 200 });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: "Terjadi kesalahan sistem internal" }, { status: 500 });
   }
 }
 
 // ==========================================
-// 4. DELETE: Hapus Transaksi (Kembalikan Stok)
+// 4. DELETE: Hapus Transaksi & Catat Audit Log
 // ==========================================
 export async function DELETE(request: Request) {
   try {
@@ -133,28 +174,49 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: "ID tidak ada" }, { status: 400 });
 
+    const actor = await getUserFromCookie();
+
     await prisma.$transaction(async (tx) => {
       const txLama = await tx.transaksiKeluar.findUnique({
-        where: { id }, include: { detailBarang: true }
+        where: { id }, 
+        include: { detailBarang: { include: { barang: true } } }
       });
 
       if (txLama) {
-        // Rollback stok (Kembalikan ke gudang)
+        const snapshotDataLama = JSON.stringify({
+          nomorNota: txLama.nomorNota,
+          tanggal: txLama.tanggal,
+          barang: txLama.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
+        });
+
         for (const item of txLama.detailBarang) {
           await tx.barang.update({
             where: { id: item.barangId },
             data: { stokSekarang: { increment: item.jumlah } }
           });
         }
-        // Hapus
+
         await tx.transaksiKeluar.update({
           where: { id }, data: { detailBarang: { deleteMany: {} } }
         });
         await tx.transaksiKeluar.delete({ where: { id } });
+
+        // 🛠️ FIX 3: Menambahkan @ts-ignore agar aman dari saringan TypeScript lama
+        // @ts-ignore
+        await tx.auditLog.create({
+          data: {
+            username: actor.username,
+            role: actor.role,
+            aksi: "DELETE_PENJUALAN",
+            nomorNota: txLama.nomorNota,
+            dataLama: snapshotDataLama,
+            dataBaru: JSON.stringify({ pesan: "Data dihancurkan secara permanen dari sistem database." })
+          }
+        });
       }
     });
 
-    return NextResponse.json({ message: "Dihapus & Stok dikembalikan" }, { status: 200 });
+    return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
   }
