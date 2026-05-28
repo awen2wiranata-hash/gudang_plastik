@@ -123,6 +123,17 @@ export default function RootLayout({
                             CCTV Audit Log
                           </Link>
                         </li>
+                        
+                        {/* 🛠️ DIUPDATE: Jalur Link disesuaikan dengan folder aplikasi aslimu */}
+                        <li>
+                          <Link 
+                            href="/dashboard/users" 
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"
+                          >
+                            <Users size={20} className="text-gray-400 group-hover:text-blue-600" />
+                            Kelola Akun Staf
+                          </Link>
+                        </li>
                       </ul>
                     </div>
                   )}
