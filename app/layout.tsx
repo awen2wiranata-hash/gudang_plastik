@@ -24,7 +24,7 @@ export default function RootLayout({
   // Cek apakah pengguna sedang membuka halaman login
   const isLoginPage = pathname === "/login";
 
-  // 🛠️ AMBIL DATA ROLE DARI COOKIE SAAT HALAMAN DIMUAT (VERSI AMAN DARI CASCADING RENDER)
+  // 🛠️ AMBIL DATA ROLE DARI COOKIE SAAT HALAMAN DIMUAT
   useEffect(() => {
     if (!isLoginPage) {
       const cookies = document.cookie.split("; ");
@@ -34,7 +34,6 @@ export default function RootLayout({
         const tokenValue = decodeURIComponent(tokenCookie.split("=")[1]);
         const parts = tokenValue.split("|");
         if (parts.length > 1) {
-          // 🛡️ Membungkus dengan requestAnimationFrame untuk menghindari penumpukan render
           requestAnimationFrame(() => {
             setUserRole(parts[1]);
           });
@@ -69,13 +68,15 @@ export default function RootLayout({
             
             {/* SIDEBAR ASLI */}
             <aside className="w-[260px] bg-white border-r border-gray-200 flex flex-col z-20 print:hidden">
+              
+              {/* 🚀 DIUPDATE: Logo dan Judul sekarang dibungkus <Link> ke Dashboard "/" */}
               <div className="h-20 flex items-center px-8 border-b border-gray-100">
-                <div className="flex items-center gap-3">
+                <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
                     <span className="text-white font-bold text-lg">F</span>
                   </div>
                   <h1 className="text-xl font-bold text-gray-800 tracking-tight">Family Jaya</h1>
-                </div>
+                </Link>
               </div>
               
               <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col justify-between">
@@ -123,8 +124,6 @@ export default function RootLayout({
                             CCTV Audit Log
                           </Link>
                         </li>
-                        
-                        {/* 🛠️ DIUPDATE: Jalur Link disesuaikan dengan folder aplikasi aslimu */}
                         <li>
                           <Link 
                             href="/dashboard/users" 
