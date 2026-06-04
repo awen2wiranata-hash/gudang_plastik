@@ -143,7 +143,7 @@ export async function PUT(request: Request) {
       });
 
       // 🛠️ FIX 2: Menambahkan @ts-ignore agar transaksi tx mau mengeksekusi model baru
-      // @ts-ignore
+
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -202,7 +202,6 @@ export async function DELETE(request: Request) {
         await tx.transaksiKeluar.delete({ where: { id } });
 
         // 🛠️ FIX 3: Menambahkan @ts-ignore agar aman dari saringan TypeScript lama
-        // @ts-ignore
         await tx.auditLog.create({
           data: {
             username: actor.username,
