@@ -37,8 +37,8 @@ export async function GET() {
       message: "✅ SINKRONISASI BERHASIL! Database user telah di-reset. Akun Utama: superadmin (password: super123) dan admin (password: admin123) siap dipakai login!" 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error Setup:", error);
-    return NextResponse.json({ error: `Gagal setup akun otomatis: ${error.message || ""}` }, { status: 500 });
+    return NextResponse.json({ error: `Gagal setup akun otomatis: ${"Terjadi kesalahaan"}` }, { status: 500 });
   }
 }
