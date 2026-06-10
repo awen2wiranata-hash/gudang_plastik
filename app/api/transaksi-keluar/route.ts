@@ -31,19 +31,48 @@ export async function GET() {
 }
 
 // ==========================================
-// 2. POST: Transaksi Baru (Kurangi Stok)
+// 2. POST: Transaksi Baru (Kurangi Stok + Auto / Custom Nota)
 // ==========================================
 export async function POST(request: Request) {
   try {
     const { nomorNota, customerId, detailBarang, tanggal } = await request.json();
 
+    // --- LOGIKA AUTO GENERATE NOTA JIKA KOSONG ---
+    let nomorNotaFinal = nomorNota ? nomorNota.trim() : "";
+    
+    if (!nomorNotaFinal) {
+      const kini = new Date();
+      const tahun = kini.getFullYear();
+      const bulan = String(kini.getMonth() + 1).padStart(2, '0');
+      const hari = String(kini.getDate()).padStart(2, '0');
+      const jam = String(kini.getHours()).padStart(2, '0');
+      const menit = String(kini.getMinutes()).padStart(2, '0');
+      const detik = String(kini.getSeconds()).padStart(2, '0');
+      
+      // Menghasilkan format unik: OUT-20260606-144530
+      nomorNotaFinal = `OUT-${tahun}${bulan}${hari}-${jam}${menit}${detik}`;
+    }
+    // ----------------------------------------------
+
     const hasil = await prisma.$transaction(async (tx) => {
+      // Cek apakah nomor nota kustom sudah terpakai (Mencegah Crash karena @unique)
+      const cekNota = await tx.transaksiKeluar.findUnique({
+        where: { nomorNota: nomorNotaFinal }
+      });
+      if (cekNota) {
+        throw new Error(`Nomor nota [${nomorNotaFinal}] sudah terdaftar di database! Gunakan nomor lain.`);
+      }
+
       const nota = await tx.transaksiKeluar.create({
         data: {
-          nomorNota, customerId, tanggal: tanggal ? new Date(tanggal) : new Date(),
+          nomorNota: nomorNotaFinal, // Gunakan nota hasil seleksi otomatis/manual
+          customerId, 
+          tanggal: tanggal ? new Date(tanggal) : new Date(),
           detailBarang: {
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
-              barangId: item.barangId, jumlah: Number(item.jumlah), tanggalKeluar: tanggal ? new Date(tanggal) : new Date()
+              barangId: item.barangId, 
+              jumlah: Number(item.jumlah), 
+              tanggalKeluar: tanggal ? new Date(tanggal) : new Date()
             }))
           }
         }

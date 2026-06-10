@@ -74,7 +74,6 @@ export async function PUT(request: Request) {
       });
 
       // 3. 🔥 REKAM JEJAK EDIT MASTER KE AUDIT LOG
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -123,7 +122,6 @@ export async function DELETE(request: Request) {
       });
 
       // 3. 🔥 REKAM JEJAK PENGHAPUSAN MASTER KE AUDIT LOG
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,

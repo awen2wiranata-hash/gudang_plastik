@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, ShieldAlert, Clock, User, FileText, ArrowRight } from "lucide-react";
+import { Eye, ShieldAlert, Clock, User, FileText, ArrowRight, RefreshCw } from "lucide-react";
 
 interface AuditLog {
   id: string;
@@ -19,34 +19,34 @@ export default function AuditLogPage() {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  useEffect(() => {
-    async function fetchLogs() {
-      try {
-        const res = await fetch("/api/audit-log");
-        const json = await res.json();
-        if (json.success) {
-          setLogs(json.data);
-        }
-      } catch (error) {
-        console.error("Gagal memuat log", error);
-      } finally {
-        setLoading(false);
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/audit-log");
+      const json = await res.json();
+      if (json.success) {
+        setLogs(json.data);
       }
+    } catch (error) {
+      console.error("Gagal memuat log", error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchLogs();
   }, []);
 
-  // 📊 FUNGSI BARU: Mengubah Teks JSON Menjadi Tabel Komparasi Berwarna
+  // 📊 FUNGSI: Mengubah Teks JSON Menjadi Tabel Komparasi Berwarna
   const renderComparisonTable = (dataLamaStr: string, dataBaruStr: string) => {
     try {
       const lama = dataLamaStr ? JSON.parse(dataLamaStr) : null;
       const baru = dataBaruStr ? JSON.parse(dataBaruStr) : null;
 
-      // Ambil daftar barang dari kondisi lama dan baru
       const barangLama: any[] = lama?.barang || [];
       const barangBaru: any[] = baru?.barang || [];
 
-      // Kumpulkan semua nama unik barang yang terlibat agar tidak ada yang terlewat
       const semuaNamaBarang = Array.from(
         new Set([
           ...barangLama.map((b) => b.nama),
@@ -54,7 +54,6 @@ export default function AuditLogPage() {
         ])
       );
 
-      // Jika ini adalah aksi DELETE permanen, tandai semua barang sebagai terhapus
       const isDeleteAction = !baru || baru.pesan || barangBaru.length === 0;
 
       return (
@@ -62,10 +61,10 @@ export default function AuditLogPage() {
           <table className="w-full text-sm text-left text-gray-500">
             <thead className="text-xs text-gray-700 uppercase bg-gray-100 font-bold border-b">
               <tr>
-                <th className="px-4 py-3">Nama Item Plastik / Barang</th>
-                <th className="px-4 py-3 text-center bg-red-50 text-red-700">Qty Lama</th>
-                <th className="px-4 py-3 text-center bg-emerald-50 text-emerald-700">Qty Baru</th>
-                <th className="px-4 py-3 text-center">Status Perubahan</th>
+                <th className="px-5 py-3.5">Nama Item Plastik / Barang</th>
+                <th className="px-5 py-3.5 text-center bg-red-50 text-red-800 font-bold">Qty Lama</th>
+                <th className="px-5 py-3.5 text-center bg-emerald-50 text-emerald-800 font-bold">Qty Baru</th>
+                <th className="px-5 py-3.5 text-center">Status Perubahan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
@@ -74,10 +73,7 @@ export default function AuditLogPage() {
                 const itemBaru = barangBaru.find((b) => b.nama === nama);
 
                 const qtyLama = itemLama ? itemLama.qty : 0;
-                // Jika aksi delete, qty baru dianggap menjadi 0
                 const qtyBaru = isDeleteAction ? 0 : itemBaru ? itemBaru.qty : 0;
-
-                // Cek apakah terjadi perubahan kuantitas stok barang
                 const isChanged = qtyLama !== qtyBaru;
 
                 return (
@@ -86,52 +82,52 @@ export default function AuditLogPage() {
                     className={`transition-colors ${
                       isChanged 
                         ? isDeleteAction 
-                          ? "bg-red-50/50 hover:bg-red-50" 
+                          ? "bg-red-50/40 hover:bg-red-50" 
                           : "bg-amber-50/40 hover:bg-amber-50"
-                        : "hover:bg-gray-50"
+                        : "hover:bg-gray-50/80"
                     }`}
                   >
                     {/* Nama Barang */}
-                    <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">
+                    <td className="px-5 py-4 font-bold text-gray-900 max-w-md truncate">
                       {nama}
                     </td>
 
                     {/* Qty Lama */}
-                    <td className="px-4 py-3 text-center font-bold text-red-600 bg-red-50/30">
-                      {itemLama ? qtyLama : "-"}
+                    <td className="px-5 py-4 text-center font-black text-red-600 bg-red-50/10 text-base">
+                      {itemLama ? `${qtyLama} Pcs` : "-"}
                     </td>
 
                     {/* Qty Baru */}
-                    <td className="px-4 py-3 text-center font-bold text-emerald-600 bg-emerald-50/30">
+                    <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/10 text-base">
                       {isDeleteAction ? (
-                        <span className="text-red-500 line-through">0</span>
+                        <span className="text-red-500 line-through">0 Pcs</span>
                       ) : itemBaru ? (
-                        qtyBaru
+                        `${qtyBaru} Pcs`
                       ) : (
                         "-"
                       )}
                     </td>
 
                     {/* Status Indikator Visual */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <td className="px-5 py-4 text-center whitespace-nowrap">
                       {isDeleteAction ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700 border border-red-200">
+                        <span className="px-3 py-1 rounded-full text-[11px] font-black bg-red-100 text-red-700 border border-red-200">
                           DIHAPUS
                         </span>
                       ) : qtyLama > 0 && !itemBaru ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                        <span className="px-3 py-1 rounded-full text-[11px] font-black bg-rose-100 text-rose-700 border border-rose-200">
                           ITEM DILEPAS
                         </span>
                       ) : qtyLama === 0 && qtyBaru > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        <span className="px-3 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
                           ITEM BARU
                         </span>
                       ) : isChanged ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center gap-1 mx-auto w-max">
+                        <span className="px-3 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center justify-center gap-1.5 mx-auto w-max">
                           {qtyLama} <ArrowRight size={12} /> {qtyBaru}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-400">
+                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-400">
                           Tidak Berubah
                         </span>
                       )}
@@ -144,16 +140,15 @@ export default function AuditLogPage() {
         </div>
       );
     } catch (e) {
-      // Jalur cadangan jika data bukan format transaksi (misal log master data string biasa)
       return (
-        <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-700">
-            <p className="font-bold uppercase mb-1 text-[10px]">Sebelum:</p>
-            {dataLamaStr || "-"}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 shadow-sm">
+            <p className="font-bold uppercase mb-1.5 text-[10px] tracking-wider">Kondisi Sebelum Perubahan:</p>
+            <div className="break-all whitespace-pre-wrap">{dataLamaStr || "Data Kosong"}</div>
           </div>
-          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700">
-            <p className="font-bold uppercase mb-1 text-[10px]">Sesudah:</p>
-            {dataBaruStr || "-"}
+          <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 shadow-sm">
+            <p className="font-bold uppercase mb-1.5 text-[10px] tracking-wider">Kondisi Sesudah Perubahan:</p>
+            <div className="break-all whitespace-pre-wrap">{dataBaruStr || "Data Kosong"}</div>
           </div>
         </div>
       );
@@ -162,91 +157,101 @@ export default function AuditLogPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 animate-pulse">
-        <Clock className="w-8 h-8 text-amber-500 animate-spin mb-2" />
-        <p className="text-sm font-medium">Memuat rekaman digital forensik...</p>
+      <div className="flex flex-col items-center justify-center min-h-[500px] text-gray-500 bg-gray-50">
+        <Clock className="w-10 h-10 text-blue-600 animate-spin mb-3" />
+        <p className="text-sm font-bold tracking-wide text-gray-600">Membaca berkas forensik digital audit log...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-8 max-w-none w-full px-4 md:px-12 bg-gray-50 min-h-screen">
+      
       {/* Header Halaman */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-            <ShieldAlert className="text-amber-600" /> Sistem Kendali Audit Log (Anti-Fraud)
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <ShieldAlert className="text-amber-500 w-8 h-8" /> Kendali Keamanan & Audit Log Forensik
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Menampilkan ringkasan riwayat manipulasi data secara permanen untuk keperluan forensik digital.
+          <p className="text-sm text-gray-500 mt-1.5 font-medium">
+            Sistem Digital Forensik Penjualan Toko Plastik Jaya — Rekaman jejak mutasi manipulasi data database (Anti-Fraud).
           </p>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-800 font-medium max-w-xs">
-          ⚠️ Mode Monitor Aktif: Seluruh tindakan edit & hapus terekam otomatis oleh sistem.
+        <div className="flex gap-2 items-center">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-xs text-amber-800 font-bold max-w-xs shadow-sm">
+            🛡️ Pengawas Aktif: Seluruh operasi edit dan hapus nota terekam permanen.
+          </div>
+          <button onClick={fetchLogs} className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-4 rounded-lg transition-all text-sm flex items-center gap-2 shadow-sm">
+            <RefreshCw size={16} /> Segarkan Log
+          </button>
         </div>
       </div>
 
-      {/* Tabel Log Utama */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 font-semibold border-b">
+      {/* Tabel Log Utama - Memenuhi Sisi Kanan Kiri */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
+        <div className="p-5 border-b border-gray-100 bg-white">
+          <h2 className="text-lg font-bold text-gray-800">Daftar Rekaman Aktivitas Manipulasi Data</h2>
+        </div>
+        
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-sm text-left text-gray-500 min-w-full">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 font-bold border-b">
               <tr>
                 <th className="px-6 py-4">Waktu Kejadian</th>
                 <th className="px-6 py-4">Pelaku (Aktor)</th>
-                <th className="px-6 py-4">Aksi Sistem</th>
-                <th className="px-6 py-4">No. Nota</th>
+                <th className="px-6 py-4">Aksi Operasi</th>
+                <th className="px-6 py-4">No. Nota Terkait</th>
                 <th className="px-6 py-4 text-center">Tindakan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-gray-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <span className="text-2xl">🛡️</span>
-                      <p className="text-sm font-medium">Sistem Aman: Belum ada jejak manipulasi data terdeteksi.</p>
+                  <td colSpan={5} className="text-center py-16 text-gray-400">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <span className="text-3xl">🛡️</span>
+                      <p className="text-base font-bold text-gray-500">Log System Bersih</p>
+                      <p className="text-xs text-gray-400 max-w-xs">Belum ada aktivitas modifikasi atau penghapusan data penjualan yang terdeteksi.</p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50/70 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600 font-medium">
+                  <tr key={log.id} className="hover:bg-gray-50/80 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-900 font-bold">
                       {new Date(log.tanggal).toLocaleString("id-ID")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 border border-gray-200">
                           <User size={14} />
                         </div>
                         <div>
-                          <div className="font-bold text-gray-800 text-xs max-w-[120px] truncate">{log.username}</div>
-                          <div className="text-[10px] text-gray-400 font-mono tracking-wider">{log.role}</div>
+                          <div className="font-extrabold text-gray-900 text-sm max-w-[150px] truncate">{log.username}</div>
+                          <div className="text-[10px] text-gray-400 font-bold font-mono tracking-wider uppercase mt-0.5">{log.role}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`px-3 py-1 rounded-full text-[11px] font-extrabold ${
+                        className={`px-3 py-1 rounded-full text-[11px] font-black tracking-wide border ${
                           log.aksi.includes("DELETE")
-                            ? "bg-red-50 text-red-700 border border-red-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
                         }`}
                       >
                         {log.aksi}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-gray-700">
-                      {log.nomorNota || "-"}
+                    <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-black text-gray-800">
+                      {log.nomorNota || "DATA_MASTER"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
                         onClick={() => setSelectedLog(log)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all shadow-sm"
                       >
-                        <Eye size={14} />
-                        Lihat Rincian Data
+                        <Eye size={14} /> Lihat Rincian Data
                       </button>
                     </td>
                   </tr>
@@ -257,43 +262,43 @@ export default function AuditLogPage() {
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 🖥️ MODAL POP-UP TABEL KOMPARASI VISUAL       */}
-      {/* ========================================== */}
+      {/* ========================================================= */}
+      {/* 🖥️ MODAL POP-UP TIMELINE KOMPARASI FORENSIK DIGITAL        */}
+      {/* ========================================================= */}
       {selectedLog && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col transform transition-all animate-in zoom-in-95 duration-200">
             
             {/* Header Modal */}
             <div className="p-6 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100">
+                <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm">
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Hasil Analisis Komparasi Data Barang</h3>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">Nomor Nota Transaksi: {selectedLog.nomorNota || "-"}</p>
+                  <h3 className="text-lg font-extrabold text-gray-900">Analisis Komparasi Mutasi Riwayat Barang</h3>
+                  <p className="text-xs text-gray-500 font-black font-mono mt-0.5">Nomor Referensi Nota: {selectedLog.nomorNota || "DATA_MASTER"}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedLog(null)}
-                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-lg transition-colors font-bold text-xs"
+                className="text-gray-400 hover:text-red-600 p-2 hover:bg-gray-100 rounded-lg transition-colors font-bold text-xs border border-transparent hover:border-gray-200"
               >
-                ✕ TUTUP
+                ✕ CLOSE
               </button>
             </div>
 
-            {/* Metadata Ringkas Pelaku */}
-            <div className="p-4 bg-amber-50/50 border-b border-gray-100 px-6 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-medium text-gray-700">
-              <p>🕒 <span className="text-gray-400">Waktu:</span> {new Date(selectedLog.tanggal).toLocaleString("id-ID")}</p>
-              <p>👤 <span className="text-gray-400">Aktor:</span> {selectedLog.username} ({selectedLog.role})</p>
-              <p>⚡ <span className="text-gray-400">Operasi:</span> <span className="font-bold text-amber-700">{selectedLog.aksi}</span></p>
+            {/* Metadata Operator */}
+            <div className="p-4 bg-amber-50/40 border-b border-gray-100 px-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold text-gray-700">
+              <p>🕒 <span className="text-gray-400 font-medium">Waktu Eksekusi:</span> <span className="text-gray-900">{new Date(selectedLog.tanggal).toLocaleString("id-ID")}</span></p>
+              <p>👤 <span className="text-gray-400 font-medium">Akun Operator:</span> <span className="text-gray-900">{selectedLog.username} ({selectedLog.role})</span></p>
+              <p>⚡ <span className="text-gray-400 font-medium">Jenis Operasi:</span> <span className="text-red-600 font-black">{selectedLog.aksi}</span></p>
             </div>
 
-            {/* Main Body: Tempat Tabel Perbandingan Baru Menggantikan JSON Teks */}
+            {/* Main Content Area */}
             <div className="p-6 overflow-y-auto bg-white flex-1">
-              <div className="mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                📋 Laporan Perubahan Item Transaksi:
+              <div className="mb-3 text-xs font-extrabold text-gray-400 uppercase tracking-wider">
+                📋 Hasil Audit Diferensial Kuantitas Item:
               </div>
               {renderComparisonTable(selectedLog.dataLama, selectedLog.dataBaru)}
             </div>
@@ -302,9 +307,9 @@ export default function AuditLogPage() {
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-5 py-2 text-xs font-bold bg-gray-800 hover:bg-gray-900 text-white rounded-xl transition-all shadow-md"
+                className="px-6 py-2.5 text-xs font-bold bg-gray-900 hover:bg-gray-900/90 text-white rounded-xl transition-all shadow-md active:scale-95"
               >
-                Selesai Memeriksa
+                Selesai Memeriksa Berkas
               </button>
             </div>
 

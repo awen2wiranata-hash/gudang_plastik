@@ -15,15 +15,16 @@ export async function GET() {
 
     const msPerDay = 24 * 60 * 60 * 1000;
     
-    // 2. REVISI KERANJANG WAKTU (Mundur murni dari Senin minggu ini)
-    // W4 adalah MINGGU LALU (Full 7 Hari yang sudah selesai)
+    // 2. PERLUAS TIMELINE MENJADI 6 MINGGU PENUH (Mundur murni dari Senin minggu ini)
     const batasAkhir = currentMonday.getTime();              // Batas tutup buku (Senin minggu ini, jam 00:00)
-    const batasW4 = batasAkhir - (7 * msPerDay);             // W4: Mulai Senin minggu lalu (Contoh: 25 Mei)
-    const batasW3 = batasAkhir - (14 * msPerDay);            // W3: Mulai 2 Senin lalu (Contoh: 18 Mei)
-    const batasW2 = batasAkhir - (21 * msPerDay);            // W2: Mulai 3 Senin lalu (Contoh: 11 Mei)
-    const batasW1 = batasAkhir - (28 * msPerDay);            // W1: Mulai 4 Senin lalu (Contoh: 4 Mei)
+    const batasW6 = batasAkhir - (7 * msPerDay);             // W6: Mulai Senin minggu lalu (Minggu Terakhir)
+    const batasW5 = batasAkhir - (14 * msPerDay);            // W5: Mulai 2 Senin lalu
+    const batasW4 = batasAkhir - (21 * msPerDay);            // W4: Mulai 3 Senin lalu
+    const batasW3 = batasAkhir - (28 * msPerDay);            // W3: Mulai 4 Senin lalu
+    const batasW2 = batasAkhir - (35 * msPerDay);            // W2: Mulai 5 Senin lalu
+    const batasW1 = batasAkhir - (42 * msPerDay);            // W1: Mulai 6 Senin lalu (Batas awal Penarikan)
 
-    // Tarik data 4 minggu penuh ke belakang (Tidak termasuk minggu yang sedang berjalan saat ini)
+    // Tarik data 6 minggu penuh ke belakang (Tidak termasuk minggu yang sedang berjalan saat ini)
     const semuaBarang = await prisma.barang.findMany({
       include: {
         riwayatKeluar: {
@@ -39,40 +40,42 @@ export async function GET() {
     });
 
     const hasilLaporan = semuaBarang.map(barang => {
-      let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
+      let w1 = 0, w2 = 0, w3 = 0, w4 = 0, w5 = 0, w6 = 0;
       
-      // Kelompokkan penjualan ke minggu yang tepat
+      // Kelompokkan penjualan ke dalam 6 slot minggu secara tepat
       barang.riwayatKeluar.forEach(keluar => {
         const tglTrans = new Date(keluar.tanggalKeluar).getTime();
         if (tglTrans >= batasW1 && tglTrans < batasW2) w1 += keluar.jumlah;
         else if (tglTrans >= batasW2 && tglTrans < batasW3) w2 += keluar.jumlah;
         else if (tglTrans >= batasW3 && tglTrans < batasW4) w3 += keluar.jumlah;
-        else if (tglTrans >= batasW4 && tglTrans < batasAkhir) w4 += keluar.jumlah; // W4 = Minggu Lalu
+        else if (tglTrans >= batasW4 && tglTrans < batasW5) w4 += keluar.jumlah;
+        else if (tglTrans >= batasW5 && tglTrans < batasW6) w5 += keluar.jumlah;
+        else if (tglTrans >= batasW6 && tglTrans < batasAkhir) w6 += keluar.jumlah; // W6 = Minggu ke-6 (paling aktual)
       });
 
-      // --- 1. LOGIKA PERAMALAN (SMA) MINGGU DEPAN ---
-      // Ramal menggunakan 3 minggu terakhir yang sudah FULL (W2, W3, W4)
-      const total3MingguTerakhir = w2 + w3 + w4;
-      const smaMingguDepan = total3MingguTerakhir / 3;
+      // --- 1. LOGIKA PERAMALAN (SMA-5) MINGGU DEPAN ---
+      // Ramal menggunakan 5 minggu terakhir yang sudah FULL (W2, W3, W4, W5, W6)
+      const total5MingguTerakhir = w2 + w3 + w4 + w5 + w6;
+      const smaMingguDepan = total5MingguTerakhir / 5;
 
-      // --- 2. LOGIKA HITUNG MAPE (AKURASI ERROR) ---
-      // Bandingkan prediksi W4 (Rata-rata W1, W2, W3) dengan Penjualan asli W4
-      const prediksiW4 = (w1 + w2 + w3) / 3;
+      // --- 2. LOGIKA HITUNG MAPE (AKURASI ERROR DI MINGGU KE-6) ---
+      // Bandingkan prediksi W6 (Rata-rata 5 minggu sebelumnya: W1 sampai W5) dengan Aktual W6
+      const prediksiW6 = (w1 + w2 + w3 + w4 + w5) / 5;
       let mape = 0;
       
-      if (w4 > 0) {
-        mape = Math.abs((w4 - prediksiW4) / w4) * 100;
-      } else if (w4 === 0 && prediksiW4 > 0) {
-        mape = 100; 
+      if (w6 > 0) {
+        mape = Math.abs((w6 - prediksiW6) / w6) * 100;
+      } else if (w6 === 0 && prediksiW6 > 0) {
+        mape = 100; // Jika tidak ada penjualan tetapi diramal ada, error dianggap 100%
       }
 
-      // --- 3. LOGIKA HITUNG ROP ---
+      // --- 3. LOGIKA HITUNG REORDER POINT (ROP) ---
       const leadTimeHari = 7;
       const penjualanHarian = smaMingguDepan / 7;
-      const safetyStock = Math.ceil(smaMingguDepan * 0.20);
+      const safetyStock = Math.ceil(smaMingguDepan * 0.20); // Pengaman stok sebesar 20%
       const nilaiRop = Math.ceil((leadTimeHari * penjualanHarian) + safetyStock);
       
-      // Penentu Status (Bandingkan Stok Fisik dengan ROP)
+      // Penentu Status (Bandingkan Stok Fisik Aktual dengan Batas ROP)
       const statusPeringatan = barang.stokSekarang <= nilaiRop ? "PERLU RESTOCK ⚠️" : "AMAN ✅";
 
       return {
@@ -80,9 +83,9 @@ export async function GET() {
         kodeBarang: barang.kodeBarang,
         namaBarang: barang.namaBarang,
         stokSekarang: barang.stokSekarang,
-        tanggalAwal: new Date(batasW2).toISOString(), // Info tabel: Dari W2...
-        tanggalAkhir: new Date(batasAkhir - 1).toISOString(), // ...Sampai akhir W4
-        total3Minggu: total3MingguTerakhir, 
+        tanggalAwal: new Date(batasW2).toISOString(),         // Informasi dasar tabel dimulai dari awal rentang W2
+        tanggalAkhir: new Date(batasAkhir - 1).toISOString(),  // Sampai batas akhir penutupan buku W6
+        total3Minggu: total5MingguTerakhir,                    // Dipertahankan nama field-nya agar frontend tidak perlu bongkar kode, namun isinya sudah akumulasi 5 minggu
         smaMingguDepan: parseFloat(smaMingguDepan.toFixed(2)),
         mape: parseFloat(mape.toFixed(2)),
         batasRop: nilaiRop,
@@ -93,7 +96,7 @@ export async function GET() {
     return NextResponse.json(hasilLaporan, { status: 200 });
 
   } catch (error) {
-    console.error("Error GET Peramalan:", error);
+    console.error("Error GET Peramalan SMA-5:", error);
     return NextResponse.json({ error: "Gagal memproses data peramalan" }, { status: 500 });
   }
 }
