@@ -24,7 +24,7 @@ export default function RootLayout({
   // Cek apakah pengguna sedang membuka halaman login
   const isLoginPage = pathname === "/login";
 
-  // 🛠️ AMBIL DATA ROLE DARI COOKIE SAAT HALAMAN DIMUAT
+  // AMBIL DATA ROLE DARI COOKIE SAAT HALAMAN DIMUAT
   useEffect(() => {
     if (!isLoginPage) {
       const cookies = document.cookie.split("; ");
@@ -50,6 +50,26 @@ export default function RootLayout({
     }
   };
 
+  // Fungsi pembantu pembakar kelas CSS navigasi aktif (Sidebar Active Link Highlighter)
+  const getNavLinkClass = (href: string) => {
+    const baseClass = "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 group";
+    
+    // Jika rute saat ini cocok dengan href tautan, sematkan warna biru aktif
+    if (pathname === href) {
+      return `${baseClass} bg-blue-50 text-blue-600 font-bold shadow-sm`;
+    }
+    // Jika tidak aktif, gunakan warna abu-abu netral bawaan
+    return `${baseClass} text-gray-600 hover:bg-gray-50 hover:text-blue-600`;
+  };
+
+  // Fungsi pembantu pengubah warna ikon navigasi secara dinamis
+  const getIconClass = (href: string, defaultColorClass: string) => {
+    if (pathname === href) {
+      return "text-blue-600 scale-105 transition-transform";
+    }
+    return `${defaultColorClass} group-hover:text-blue-600 transition-colors`;
+  };
+
   return (
     <html lang="id">
       <head>
@@ -58,7 +78,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} bg-gray-50 text-gray-900 print:bg-white`}>
         
-        {/* 🔑 JALUR FILTER KONDISI LAYOUT */}
+        {/* JALUR FILTER KONDISI LAYOUT */}
         {isLoginPage ? (
           <div className="min-h-screen bg-gray-50">
             {children}
@@ -69,7 +89,7 @@ export default function RootLayout({
             {/* SIDEBAR ASLI */}
             <aside className="w-[260px] bg-white border-r border-gray-200 flex flex-col z-20 print:hidden">
               
-              {/* 🚀 DIUPDATE: Logo dan Judul sekarang dibungkus <Link> ke Dashboard "/" */}
+              {/* Logo dan Judul */}
               <div className="h-20 flex items-center px-8 border-b border-gray-100">
                 <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -85,9 +105,24 @@ export default function RootLayout({
                   <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Master Data</p>
                     <ul className="space-y-1">
-                      <li><Link href="/barang" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Package size={20} className="text-gray-400 group-hover:text-blue-600" />Master Barang</Link></li>
-                      <li><Link href="/supplier" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Building2 size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pemasok</Link></li>
-                      <li><Link href="/customer" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><Users size={20} className="text-gray-400 group-hover:text-blue-600" />Master Pelanggan</Link></li>
+                      <li>
+                        <Link href="/barang" className={getNavLinkClass("/barang")}>
+                          <Package size={20} className={getIconClass("/barang", "text-gray-400")} />
+                          Master Barang
+                        </Link>
+                      </li>
+                      <li>
+                        <Link href="/supplier" className={getNavLinkClass("/supplier")}>
+                          <Building2 size={20} className={getIconClass("/supplier", "text-gray-400")} />
+                          Master Pemasok
+                        </Link>
+                      </li>
+                      <li>
+                        <Link href="/customer" className={getNavLinkClass("/customer")}>
+                          <Users size={20} className={getIconClass("/customer", "text-gray-400")} />
+                          Master Pelanggan
+                        </Link>
+                      </li>
                     </ul>
                   </div>
 
@@ -95,8 +130,18 @@ export default function RootLayout({
                   <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Transaksi</p>
                     <ul className="space-y-1">
-                      <li><Link href="/transaksi-masuk" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowDownToLine size={20} className="text-emerald-500" />Barang Masuk</Link></li>
-                      <li><Link href="/transaksi-keluar" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"><ArrowUpFromLine size={20} className="text-rose-500" />Penjualan Keluar</Link></li>
+                      <li>
+                        <Link href="/transaksi-masuk" className={getNavLinkClass("/transaksi-masuk")}>
+                          <ArrowDownToLine size={20} className={getIconClass("/transaksi-masuk", "text-emerald-500")} />
+                          Barang Masuk
+                        </Link>
+                      </li>
+                      <li>
+                        <Link href="/transaksi-keluar" className={getNavLinkClass("/transaksi-keluar")}>
+                          <ArrowUpFromLine size={20} className={getIconClass("/transaksi-keluar", "text-rose-500")} />
+                          Penjualan Keluar
+                        </Link>
+                      </li>
                     </ul>
                   </div>
 
@@ -104,32 +149,29 @@ export default function RootLayout({
                   <div className="mb-6">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Analitik</p>
                     <ul className="space-y-1">
-                      <li><Link href="/peramalan" className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 transition-colors"><TrendingUp size={20} className="text-blue-600" />Peramalan SMA</Link></li>
+                      <li>
+                        <Link href="/peramalan" className={getNavLinkClass("/peramalan")}>
+                          <TrendingUp size={20} className={getIconClass("/peramalan", "text-blue-600")} />
+                          Peramalan SMA
+                        </Link>
+                      </li>
                     </ul>
                   </div>
 
-                  {/* ======================================================= */}
-                  {/* 🔒 🛡️ MENU KHUSUS OWNER: HANYA TAMPIL UNTUK SUPER_ADMIN */}
-                  {/* ======================================================= */}
+                  {/* MENU KHUSUS OWNER */}
                   {userRole === "SUPER_ADMIN" && (
                     <div className="mt-6 pt-4 border-t border-gray-100">
                       <p className="px-4 text-xs font-bold text-amber-600 uppercase tracking-wider mb-3">Sistem Keamanan</p>
                       <ul className="space-y-1">
                         <li>
-                          <Link 
-                            href="/dashboard/audit-log" 
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors group"
-                          >
-                            <ShieldAlert size={20} className="text-amber-600 group-hover:scale-110 transition-transform" />
+                          <Link href="/dashboard/audit-log" className={getNavLinkClass("/dashboard/audit-log")}>
+                            <ShieldAlert size={20} className={getIconClass("/dashboard/audit-log", "text-amber-600")} />
                             CCTV Audit Log
                           </Link>
                         </li>
                         <li>
-                          <Link 
-                            href="/dashboard/users" 
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors group"
-                          >
-                            <Users size={20} className="text-gray-400 group-hover:text-blue-600" />
+                          <Link href="/dashboard/users" className={getNavLinkClass("/dashboard/users")}>
+                            <Users size={20} className={getIconClass("/dashboard/users", "text-gray-400")} />
                             Kelola Akun Staf
                           </Link>
                         </li>

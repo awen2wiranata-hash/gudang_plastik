@@ -29,7 +29,6 @@ export async function POST(request: Request) {
       { status: 200 }
     );
 
-    // ⚠️ HANYA GUNAKAN FORMAT MURNI: username|ROLE
     const tokenValue = `${user.username}|${user.role}`;
 
     response.cookies.set({

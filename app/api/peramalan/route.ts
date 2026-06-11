@@ -58,15 +58,23 @@ export async function GET() {
       const total5MingguTerakhir = w2 + w3 + w4 + w5 + w6;
       const smaMingguDepan = total5MingguTerakhir / 5;
 
-      // --- 2. LOGIKA HITUNG MAPE (AKURASI ERROR DI MINGGU KE-6) ---
+      // --- 2. LOGIKA HITUNG MAPE (AKURASI ERROR DI MINGGU KE-6) DENGAN CAPPING 100% ---
       // Bandingkan prediksi W6 (Rata-rata 5 minggu sebelumnya: W1 sampai W5) dengan Aktual W6
       const prediksiW6 = (w1 + w2 + w3 + w4 + w5) / 5;
       let mape = 0;
       
       if (w6 > 0) {
-        mape = Math.abs((w6 - prediksiW6) / w6) * 100;
+        // Hitung nilai error murni terlebih dahulu
+        const errorMurni = Math.abs((w6 - prediksiW6) / w6) * 100;
+        
+        // 🔥 ALGORITMA DUAL CAPPING: Jika error murni jebol > 100% akibat penjualan aktual terlalu kecil, paksa kunci di angka 100%
+        mape = errorMurni > 100 ? 100 : errorMurni;
       } else if (w6 === 0 && prediksiW6 > 0) {
-        mape = 100; // Jika tidak ada penjualan tetapi diramal ada, error dianggap 100%
+        // Jika tidak ada penjualan sama sekali (0) tetapi sistem meramal ada tren, error dikunci maksimal 100%
+        mape = 100; 
+      } else {
+        // Jika aktual penjualan memang 0 dan sistem meramal 0, maka tingkat kesalahan adalah 0%
+        mape = 0;
       }
 
       // --- 3. LOGIKA HITUNG REORDER POINT (ROP) ---

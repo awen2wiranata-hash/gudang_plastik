@@ -22,7 +22,10 @@ export async function GET() {
   try {
     const data = await prisma.transaksiKeluar.findMany({
       include: { customer: true, detailBarang: { include: { barang: true } } },
-      orderBy: { tanggal: 'desc' }
+      orderBy: [
+        { tanggal: 'desc' },
+        { id: 'desc' }
+      ]
     });
     return NextResponse.json(data);
   } catch (error) {
@@ -31,31 +34,50 @@ export async function GET() {
 }
 
 // ==========================================
-// 2. POST: Transaksi Baru (Kurangi Stok + Auto / Custom Nota)
+// 2. POST: Transaksi Baru (Kurangi Stok + Auto Urutan Bulanan / Custom Nota)
 // ==========================================
 export async function POST(request: Request) {
   try {
     const { nomorNota, customerId, detailBarang, tanggal } = await request.json();
 
-    // --- LOGIKA AUTO GENERATE NOTA JIKA KOSONG ---
+    // Inisialisasi tanggal transaksi (jika kosong gunakan waktu sekarang)
+    const tanggalTransaksi = tanggal ? new Date(tanggal) : new Date();
     let nomorNotaFinal = nomorNota ? nomorNota.trim() : "";
-    
-    if (!nomorNotaFinal) {
-      const kini = new Date();
-      const tahun = kini.getFullYear();
-      const bulan = String(kini.getMonth() + 1).padStart(2, '0');
-      const hari = String(kini.getDate()).padStart(2, '0');
-      const jam = String(kini.getHours()).padStart(2, '0');
-      const menit = String(kini.getMinutes()).padStart(2, '0');
-      const detik = String(kini.getSeconds()).padStart(2, '0');
-      
-      // Menghasilkan format unik: OUT-20260606-144530
-      nomorNotaFinal = `OUT-${tahun}${bulan}${hari}-${jam}${menit}${detik}`;
-    }
-    // ----------------------------------------------
 
     const hasil = await prisma.$transaction(async (tx) => {
-      // Cek apakah nomor nota kustom sudah terpakai (Mencegah Crash karena @unique)
+      
+      // --- LOGIKA AUTO GENERATE NOTA BERDASARKAN URUTAN BULANAN JIKA KOSONG ---
+      if (!nomorNotaFinal) {
+        const tahun = tanggalTransaksi.getFullYear();
+        const bulan = tanggalTransaksi.getMonth(); // 0 = Januari, 11 = Desember
+
+        // Tentukan batas awal dan batas akhir bulan berjalan
+        const awalBulan = new Date(tahun, bulan, 1);
+        const akhirBulan = new Date(tahun, bulan + 1, 0, 23, 59, 59, 999);
+
+        // Hitung total transaksi keluar yang sudah ada pada bulan tersebut
+        const jumlahTransaksiBulanIni = await tx.transaksiKeluar.count({
+          where: {
+            tanggal: {
+              gte: awalBulan,
+              lte: akhirBulan,
+            },
+          },
+        });
+
+        // Format bulan dan tahun untuk komponen string nota
+        const strBulan = String(bulan + 1).padStart(2, '0');
+        const strTahun = String(tahun);
+        
+        // Urutan nota baru = jumlah transaksi yang ada + 1 (di-pad 4 digit, misal: 0001)
+        const urutanNota = String(jumlahTransaksiBulanIni + 1).padStart(4, '0');
+
+        // Satukan menjadi kode nota: OUT-202606-0001
+        nomorNotaFinal = `OUT-${strTahun}${strBulan}-${urutanNota}`;
+      }
+      // -------------------------------------------------------------------------
+
+      // Cek apakah nomor nota kustom/otomatis sudah terpakai (Mencegah Crash karena @unique)
       const cekNota = await tx.transaksiKeluar.findUnique({
         where: { nomorNota: nomorNotaFinal }
       });
@@ -65,14 +87,14 @@ export async function POST(request: Request) {
 
       const nota = await tx.transaksiKeluar.create({
         data: {
-          nomorNota: nomorNotaFinal, // Gunakan nota hasil seleksi otomatis/manual
+          nomorNota: nomorNotaFinal, 
           customerId, 
-          tanggal: tanggal ? new Date(tanggal) : new Date(),
+          tanggal: tanggalTransaksi,
           detailBarang: {
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
               barangId: item.barangId, 
               jumlah: Number(item.jumlah), 
-              tanggalKeluar: tanggal ? new Date(tanggal) : new Date()
+              tanggalKeluar: tanggalTransaksi
             }))
           }
         }
@@ -108,8 +130,8 @@ export async function PUT(request: Request) {
     
     if (!id) throw new Error("ID Transaksi tidak ditemukan saat mengedit!");
 
-    // Ambil data user pengeksekusi (ditambahkan await)
     const actor = await getUserFromCookie();
+    const tanggalTransaksi = tanggal ? new Date(tanggal) : new Date();
 
     const hasil = await prisma.$transaction(async (tx) => {
       // 1. Cari transaksi lama
@@ -133,15 +155,39 @@ export async function PUT(request: Request) {
         });
       }
 
+      // Logika otomatisasi nomor nota jika saat edit kolom sengaja dikosongkan
+      let nomorNotaFinal = nomorNota ? nomorNota.trim() : "";
+      if (!nomorNotaFinal) {
+        const tahun = tanggalTransaksi.getFullYear();
+        const bulan = tanggalTransaksi.getMonth();
+        const awalBulan = new Date(tahun, bulan, 1);
+        const akhirBulan = new Date(tahun, bulan + 1, 0, 23, 59, 59, 999);
+
+        const jumlahTransaksiBulanIni = await tx.transaksiKeluar.count({
+          where: {
+            tanggal: { gte: awalBulan, lte: akhirBulan },
+            id: { not: id } // Abaikan nota ini sendiri agar nomor urutan tidak melompat
+          },
+        });
+
+        const strBulan = String(bulan + 1).padStart(2, '0');
+        const strTahun = String(tahun);
+        const urutanNota = String(jumlahTransaksiBulanIni + 1).padStart(4, '0');
+
+        nomorNotaFinal = `OUT-${strTahun}${strBulan}-${urutanNota}`;
+      }
+
       // 3. Update Detail Baru
       const txUpdate = await tx.transaksiKeluar.update({
         where: { id },
         data: {
-          nomorNota, customerId, tanggal: tanggal ? new Date(tanggal) : new Date(),
+          nomorNota: nomorNotaFinal, 
+          customerId, 
+          tanggal: tanggalTransaksi,
           detailBarang: {
             deleteMany: {}, 
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
-              barangId: item.barangId, jumlah: Number(item.jumlah), tanggalKeluar: tanggal ? new Date(tanggal) : new Date()
+              barangId: item.barangId, jumlah: Number(item.jumlah), tanggalKeluar: tanggalTransaksi
             }))
           }
         },
@@ -171,8 +217,8 @@ export async function PUT(request: Request) {
         barang: txUpdate.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
       });
 
-      // 🛠️ FIX 2: Menambahkan @ts-ignore agar transaksi tx mau mengeksekusi model baru
-
+      // 🔥 REKAM JEJAK EDIT KE AUDIT LOG
+      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -230,7 +276,8 @@ export async function DELETE(request: Request) {
         });
         await tx.transaksiKeluar.delete({ where: { id } });
 
-        // 🛠️ FIX 3: Menambahkan @ts-ignore agar aman dari saringan TypeScript lama
+        // 🔥 REKAM JEJAK HAPUS KE AUDIT LOG
+        // @ts-ignore
         await tx.auditLog.create({
           data: {
             username: actor.username,
