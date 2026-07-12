@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Edit2, Trash2, X, Check } from "lucide-react";
+import { X, Check } from "lucide-react";
 
 type Supplier = {
   id: string;

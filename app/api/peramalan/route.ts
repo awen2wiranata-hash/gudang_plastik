@@ -25,13 +25,16 @@ export async function GET() {
     const batasW1 = batasAkhir - (42 * msPerDay);            // W1: Mulai 6 Senin lalu (Batas awal Penarikan)
 
     // Tarik data 6 minggu penuh ke belakang (Tidak termasuk minggu yang sedang berjalan saat ini)
-    const semuaBarang = await prisma.barang.findMany({
+const semuaBarang = await prisma.barang.findMany({
+      where: {
+        isAktif: true,
+      },
       include: {
         riwayatKeluar: {
           where: { 
             tanggalKeluar: { 
               gte: new Date(batasW1),
-              lt: new Date(batasAkhir) // Kunci: Hanya tarik data yang selesai SEBELUM minggu ini dimulai
+              lt: new Date(batasAkhir) 
             } 
           }
         }

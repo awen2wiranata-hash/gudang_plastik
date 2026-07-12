@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserPlus, Shield, Trash2, Edit2, Check, Eye, EyeOff, Loader2 } from "lucide-react";
+import { UserPlus, Shield, Edit2, Check, Eye, EyeOff, Loader2 } from "lucide-react";
 
 type UserAccount = {
   id: string;

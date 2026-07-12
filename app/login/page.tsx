@@ -32,7 +32,8 @@ export default function LoginPage() {
       } else {
         setError(data.message || "Username atau Password salah!");
       }
-    } catch (err) {
+    } catch {
+      // 🔥 Perbaikan: Menghapus (err) yang tidak digunakan
       setError("Terjadi kesalahan jaringan.");
     } finally {
       setLoading(false);

@@ -28,7 +28,8 @@ export async function GET() {
       ]
     });
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
+    // Memperbaiki: Menghapus variabel error yang tidak digunakan
     return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
 }
@@ -199,8 +200,6 @@ export async function PUT(request: Request) {
         barang: txUpdate.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
       });
 
-      // 5. 🔥 REKAM JEJAK EDIT KE AUDIT LOG
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -260,8 +259,6 @@ export async function DELETE(request: Request) {
         });
         await tx.transaksiMasuk.delete({ where: { id } });
 
-        // 🔥 REKAM JEJAK HAPUS KE AUDIT LOG
-        // @ts-ignore
         await tx.auditLog.create({
           data: {
             username: actor.username,
@@ -276,7 +273,8 @@ export async function DELETE(request: Request) {
     });
 
     return NextResponse.json({ message: "Data masuk dihapus & log direkam!" }, { status: 200 });
-  } catch (error) {
+  } catch {
+    // Memperbaiki: Menghapus variabel error yang tidak digunakan
     return NextResponse.json({ error: "Gagal menghapus data" }, { status: 500 });
   }
 }

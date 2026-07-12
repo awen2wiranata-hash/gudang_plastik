@@ -1,25 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Select from "react-select";
+import Select, { StylesConfig } from "react-select";
 import { Eye, Trash2, X, Plus, List, FileText, CheckCircle, Upload, AlertCircle } from "lucide-react";
 import * as xlsx from "xlsx";
 
+// ==========================================
+// DEFINISI TIPE DATA (TYPES & INTERFACES)
+// ==========================================
 type Supplier = { id: string; namaPabrik: string };
 type Barang = { id: string; namaBarang: string; kodeBarang: string; stokSekarang: number };
 type DetailMasuk = { barangId: string; jumlah: number | "" };
+
 type RiwayatMasuk = {
-  id: string; nomorNota: string; tanggal: string; supplierId: string;
+  id: string; 
+  nomorNota: string; 
+  tanggal: string; 
+  supplierId: string;
   supplier: { namaPabrik: string };
   detailBarang: { jumlah: number; barang: { id: string; namaBarang: string; kodeBarang: string } }[];
 };
+
 type TabItem = {
-  id: string; title: string; type: "RIWAYAT" | "FORM"; dataEdit?: RiwayatMasuk;
+  id: string; 
+  title: string; 
+  type: "RIWAYAT" | "FORM"; 
+  dataEdit?: RiwayatMasuk;
 };
 
+type SelectOption = { value: string; label: string };
+
+interface ExcelRow {
+  "Nama Barang"?: string;
+  "Jumlah"?: number | string;
+  "Qty"?: number | string;
+  "QTY"?: number | string;
+  "Quantity"?: number | string;
+}
+
+interface FormTransaksiTabProps {
+  tabId: string;
+  dataEdit?: RiwayatMasuk;
+  daftarSupplier: Supplier[];
+  daftarBarang: Barang[];
+  onSuccess: () => void;
+  onClose: () => void;
+  onDelete?: (id: string, nota: string) => void;
+}
+
 // 🎨 GAYA KUSTOM UNTUK DROP-DOWN REACT-SELECT AGAR HITAM PEKAT & KONTRAS TINGGI
-const customSelectStyles = {
-  control: (base: any, state: any) => ({
+const customSelectStyles: StylesConfig<SelectOption, false> = {
+  control: (base, state) => ({
     ...base,
     borderRadius: "0.5rem",
     borderColor: state.isFocused ? "#2563eb" : "#d1d5db",
@@ -30,7 +61,7 @@ const customSelectStyles = {
       borderColor: "#9ca3af"
     }
   }),
-  option: (base: any, state: any) => ({
+  option: (base, state) => ({
     ...base,
     backgroundColor: state.isSelected 
       ? "#2563eb" 
@@ -45,26 +76,26 @@ const customSelectStyles = {
       backgroundColor: "#3b82f6"
     }
   }),
-  singleValue: (base: any) => ({
+  singleValue: (base) => ({
     ...base,
     color: "#111827", // Huruf item terpilih hitam pekat
     fontWeight: "600",
     fontSize: "0.875rem"
   }),
-  placeholder: (base: any) => ({
+  placeholder: (base) => ({
     ...base,
     color: "#9ca3af",
     fontSize: "0.875rem"
   }),
-  input: (base: any) => ({
+  input: (base) => ({
     ...base,
     color: "#111827"
   }),
-  menu: (base: any) => ({
+  menu: (base) => ({
     ...base,
     borderRadius: "0.5rem",
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-    border: "1px border-gray-200"
+    border: "1px solid #e5e7eb"
   })
 };
 
@@ -73,10 +104,7 @@ const customSelectStyles = {
 // ==========================================
 const FormTransaksiTab = ({ 
    dataEdit, daftarSupplier, daftarBarang, onSuccess, onClose, onDelete 
-}: { 
-  tabId: string, dataEdit?: RiwayatMasuk, daftarSupplier: Supplier[], daftarBarang: Barang[], 
-  onSuccess: () => void, onClose: () => void, onDelete?: (id: string, nota: string) => void 
-}) => {
+}: FormTransaksiTabProps) => {
   const isEdit = !!dataEdit;
   const [nomorNota, setNomorNota] = useState(dataEdit?.nomorNota || "");
   const [supplierId, setSupplierId] = useState(dataEdit?.supplierId || "");
@@ -91,14 +119,14 @@ const FormTransaksiTab = ({
   const [barangTidakKetemu, setBarangTidakKetemu] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
-  const opsiSupplier = daftarSupplier.map((sup) => ({ value: sup.id, label: sup.namaPabrik }));
-  const opsiBarang = daftarBarang.map((brg) => ({
+  const opsiSupplier: SelectOption[] = daftarSupplier.map((sup) => ({ value: sup.id, label: sup.namaPabrik }));
+  const opsiBarang: SelectOption[] = daftarBarang.map((brg) => ({
     value: brg.id, label: `[${brg.kodeBarang}] ${brg.namaBarang} (Stok Saat Ini: ${brg.stokSekarang} Pcs)`
   }));
 
   const ubahKeranjang = (index: number, field: keyof DetailMasuk, value: string | number) => {
     const isiBaru = [...keranjang];
-    isiBaru[index] = { ...isiBaru[index], [field]: value };
+    isiBaru[index] = { ...isiBaru[index], [field]: value } as DetailMasuk;
     setKeranjang(isiBaru);
   };
 
@@ -119,14 +147,16 @@ const FormTransaksiTab = ({
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
+        if (!bstr) return;
+        
         const workbook = xlsx.read(bstr, { type: "binary" });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const dataExcel = xlsx.utils.sheet_to_json(worksheet);
+        const dataExcel = xlsx.utils.sheet_to_json<ExcelRow>(worksheet);
 
         const newKeranjang: DetailMasuk[] = [];
         const notFound: string[] = [];
 
-        dataExcel.forEach((row: any) => {
+        dataExcel.forEach((row) => {
           const namaDariExcel = String(row["Nama Barang"] || "").trim();
           const rawQty = row["Jumlah"] ?? row["Qty"] ?? row["QTY"] ?? row["Quantity"] ?? "1";
           const qtyDariExcel = parseInt(String(rawQty).trim(), 10) || 1;
@@ -156,15 +186,15 @@ const FormTransaksiTab = ({
           setBarangTidakKetemu(notFound);
         }
 
-      } catch (error) {
-        alert("Gagal membaca file excel. Pastikan format kolom benar.");
-      } finally {
-        setIsImporting(false);
-        e.target.value = "";
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
+        } catch {
+          alert("Gagal membaca file excel. Pastikan format kolom benar.");
+        } finally {
+          setIsImporting(false);
+          e.target.value = "";
+        }
+            };
+            reader.readAsBinaryString(file);
+          };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +238,7 @@ const FormTransaksiTab = ({
             <button 
               type="button" 
               onClick={() => onDelete(dataEdit.id, dataEdit.nomorNota)} 
-              className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-red-200"
+              className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap.5 border border-red-200"
             >
               <Trash2 size={16}/> Hapus Nota
             </button>
@@ -332,7 +362,7 @@ const FormTransaksiTab = ({
 };
 
 // ==========================================
-// PENGELOLA HALAMAN TRANSKASI MASUK
+// PENGELOLA HALAMAN TRANSAKSI MASUK
 // ==========================================
 export default function TransaksiMasukPage() {
   const [daftarSupplier, setDaftarSupplier] = useState<Supplier[]>([]);
@@ -346,7 +376,7 @@ export default function TransaksiMasukPage() {
   const fetchData = async () => {
     try {
       const [resSup, resBar, resRiw] = await Promise.all([
-        fetch("/api/supplier"), fetch("/api/barang"), fetch("/api/transaksi-masuk")
+        fetch("/api/supplier"), fetch("/api/barang?activeOnly=true"), fetch("/api/transaksi-masuk")
       ]);
       setDaftarSupplier(await resSup.json());
       setDaftarBarang(await resBar.json());

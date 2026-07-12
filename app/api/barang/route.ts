@@ -25,31 +25,46 @@ export async function POST(request: Request) {
       data: { kodeBarang, namaBarang, kategori },
     });
     return NextResponse.json(barangBaru, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ error: "Gagal menambah data" }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Gagal menambah data:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Terjadi kesalahan yang tidak diketahui" }, { status: 500 });
   }
 }
-
 // ==========================================
-// 2. READ: Ambil Semua Data Barang
+// 2. READ: Ambil Data Barang (Dengan Filter Dinamis)
 // ==========================================
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get("activeOnly") === "true";
+    const filter = activeOnly ? { isAktif: true } : {};
+
     const semuaBarang = await prisma.barang.findMany({
-      orderBy: { createdAt: 'desc' }
+      where: filter,
+      include: {
+        _count: { select: { riwayatMasuk: true, riwayatKeluar: true } }
+      },
+      orderBy: [{ isAktif: 'desc' }, { createdAt: 'desc' }]
     });
     return NextResponse.json(semuaBarang, { status: 200 });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Gagal mengambil data:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
 }
 
-// ==========================================
-// 3. UPDATE: Edit Data Barang & REKAM AUDIT LOG
-// ==========================================
+
 export async function PUT(request: Request) {
   try {
-    const { id, kodeBarang, namaBarang, kategori } = await request.json();
+    const body = await request.json();
+    const { id, isToggleStatus, isAktif, kodeBarang, namaBarang, kategori } = body;
+    
     if (!id) return NextResponse.json({ error: "ID tidak ditemukan" }, { status: 400 });
 
     const actor = await getUserFromCookie();
@@ -60,33 +75,58 @@ export async function PUT(request: Request) {
       if (!barangLama) throw new Error("Barang tidak ditemukan di database!");
 
       const snapshotLama = JSON.stringify({
-        barang: [{ nama: barangLama.namaBarang, qty: barangLama.stokSekarang }]
+        barang: [{ nama: barangLama.namaBarang, qty: barangLama.stokSekarang, aktif: barangLama.isAktif }]
       });
 
-      // 2. Update data barangnya
-      const barangUpdate = await tx.barang.update({
+      // PERCABANGAN LOGIKA A: JIKA HANYA INGIN MENGUBAH STATUS AKTIF / NONAKTIF
+      if (isToggleStatus) {
+        const barangUpdateStatus = await tx.barang.update({
+          where: { id: id },
+          data: { isAktif },
+        });
+
+        const snapshotBaru = JSON.stringify({
+          barang: [{ nama: barangUpdateStatus.namaBarang, qty: barangUpdateStatus.stokSekarang, aktif: barangUpdateStatus.isAktif }]
+        });
+
+        // REKAM JEJAK PERUBAHAN STATUS KE AUDIT LOG
+        await tx.auditLog.create({
+          data: {
+            username: actor.username,
+            role: actor.role,
+            aksi: "TOGGLE_STATUS_MASTER_BARANG",
+            nomorNota: barangLama.kodeBarang,
+            dataLama: snapshotLama,
+            dataBaru: snapshotBaru
+          }
+        });
+
+        return barangUpdateStatus;
+      }
+
+      // PERCABANGAN LOGIKA B: EDIT DATA MASTER BARANG BIASA
+      const barangUpdateBiasa = await tx.barang.update({
         where: { id: id },
         data: { kodeBarang, namaBarang, kategori },
       });
 
-      const snapshotBaru = JSON.stringify({
-        barang: [{ nama: barangUpdate.namaBarang, qty: barangUpdate.stokSekarang }]
+      const snapshotBaruBiasa = JSON.stringify({
+        barang: [{ nama: barangUpdateBiasa.namaBarang, qty: barangUpdateBiasa.stokSekarang, aktif: barangUpdateBiasa.isAktif }]
       });
 
-      // 3. 🔥 REKAM JEJAK EDIT MASTER KE AUDIT LOG
-      // @ts-ignore
+      // REKAM JEJAK EDIT MASTER KE AUDIT LOG
       await tx.auditLog.create({
         data: {
           username: actor.username,
           role: actor.role,
           aksi: "UPDATE_MASTER_BARANG",
-          nomorNota: barangLama.kodeBarang, // Memanfaatkan kolom nota untuk menyimpan Kode Barang
+          nomorNota: barangLama.kodeBarang,
           dataLama: snapshotLama,
-          dataBaru: snapshotBaru
+          dataBaru: snapshotBaruBiasa
         }
       });
 
-      return barangUpdate;
+      return barangUpdateBiasa;
     });
 
     return NextResponse.json(hasil, { status: 200 });
@@ -97,7 +137,7 @@ export async function PUT(request: Request) {
 }
 
 // ==========================================
-// 4. DELETE: Hapus Data Barang & REKAM AUDIT LOG
+// 4. DELETE: Hapus Data Barang (Strict Check) & REKAM AUDIT LOG
 // ==========================================
 export async function DELETE(request: Request) {
   try {
@@ -106,10 +146,31 @@ export async function DELETE(request: Request) {
     
     if (!id) return NextResponse.json({ error: "ID tidak ditemukan" }, { status: 400 });
 
+    // 1. AMBIL JUMLAH DEPENDENSI TRANSAKSI BARANG TERLEBIH DAHULU
+    const cekBarang = await prisma.barang.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { riwayatMasuk: true, riwayatKeluar: true }
+        }
+      }
+    });
+
+    if (!cekBarang) return NextResponse.json({ error: "Barang tidak ditemukan!" }, { status: 404 });
+
+    const sudahAdaTransaksi = cekBarang._count.riwayatMasuk > 0 || cekBarang._count.riwayatKeluar > 0;
+
+    // PROTEKSI: Tolak kueri hapus fisik jika sudah berelasi dengan tabel nota manapun
+    if (sudahAdaTransaksi) {
+      return NextResponse.json({ 
+        error: "Barang ini tidak bisa dihapus secara permanen karena telah memiliki riwayat transaksi masuk/keluar! Silakan gunakan fitur 'Nonaktifkan' untuk mengarsipkannya." 
+      }, { status: 400 });
+    }
+
     const actor = await getUserFromCookie();
 
     await prisma.$transaction(async (tx) => {
-      // 1. Ambil snapshot data barang sebelum dihapus permanen
+      // 2. Ambil snapshot data barang sebelum dihapus permanen
       const barangLama = await tx.barang.findUnique({ where: { id } });
       if (!barangLama) throw new Error("Barang tidak ditemukan!");
 
@@ -117,12 +178,12 @@ export async function DELETE(request: Request) {
         barang: [{ nama: barangLama.namaBarang, qty: barangLama.stokSekarang }]
       });
 
-      // 2. Hapus barang
+      // 3. Hapus barang secara fisik (Hard Delete aman dilakukan karena relasi bernilai 0)
       await tx.barang.delete({
         where: { id: id }
       });
 
-      // 3. 🔥 REKAM JEJAK PENGHAPUSAN MASTER KE AUDIT LOG
+      // 4. 🔥 REKAM JEJAK PENGHAPUSAN MASTER KE AUDIT LOG
       await tx.auditLog.create({
         data: {
           username: actor.username,

@@ -14,12 +14,23 @@ interface AuditLog {
   tanggal: string;
 }
 
+// Definisikan tipe untuk item barang plastik di dalam JSON string
+interface LogBarangItem {
+  nama: string;
+  qty: number;
+}
+
+interface LogSnapshot {
+  barang?: LogBarangItem[];
+  pesan?: string;
+}
+
 export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  const fetchLogs = async () => {
+const fetchLogs = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/audit-log");
@@ -29,7 +40,8 @@ export default function AuditLogPage() {
       }
     } catch (error) {
       console.error("Gagal memuat log", error);
-    } finally {
+    }
+    finally {
       setLoading(false);
     }
   };
@@ -41,11 +53,11 @@ export default function AuditLogPage() {
   // 📊 FUNGSI: Mengubah Teks JSON Menjadi Tabel Komparasi Berwarna
   const renderComparisonTable = (dataLamaStr: string, dataBaruStr: string) => {
     try {
-      const lama = dataLamaStr ? JSON.parse(dataLamaStr) : null;
-      const baru = dataBaruStr ? JSON.parse(dataBaruStr) : null;
+      const lama = dataLamaStr ? (JSON.parse(dataLamaStr) as LogSnapshot) : null;
+      const baru = dataBaruStr ? (JSON.parse(dataBaruStr) as LogSnapshot) : null;
 
-      const barangLama: any[] = lama?.barang || [];
-      const barangBaru: any[] = baru?.barang || [];
+      const barangLama: LogBarangItem[] = lama?.barang || [];
+      const barangBaru: LogBarangItem[] = baru?.barang || [];
 
       const semuaNamaBarang = Array.from(
         new Set([
@@ -139,7 +151,8 @@ export default function AuditLogPage() {
           </table>
         </div>
       );
-    } catch (e) {
+    } catch {
+      // Memperbaiki: Menghapus variabel 'e' yang dideklarasikan tetapi tidak pernah digunakan
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
           <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 shadow-sm">
@@ -187,7 +200,7 @@ export default function AuditLogPage() {
         </div>
       </div>
 
-      {/* Tabel Log Utama - Memenuhi Sisi Kanan Kiri */}
+      {/* Tabel Log Utama */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
         <div className="p-5 border-b border-gray-100 bg-white">
           <h2 className="text-lg font-bold text-gray-800">Daftar Rekaman Aktivitas Manipulasi Data</h2>

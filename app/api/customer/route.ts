@@ -11,21 +11,18 @@ async function getUserFromCookie() {
   return { username: parts[0] || "Unknown_User", role: parts[1] || "ADMIN" };
 }
 
-// ==========================================
-// READ: Ambil Semua Data Customer
-// ==========================================
+// 1. GET
 export async function GET() {
   try {
     const data = await prisma.customer.findMany({ orderBy: { createdAt: 'desc' } });
     return NextResponse.json(data, { status: 200 });
-  } catch (error) {
+  } catch (error: unknown) {
+    console.error("Gagal ambil data:", error);
     return NextResponse.json({ error: "Gagal ambil data" }, { status: 500 });
   }
 }
 
-// ==========================================
-// CREATE: Tambah Customer Baru & REKAM LOG
-// ==========================================
+// 2. POST
 export async function POST(request: Request) {
   try {
     const { nama, kontak, alamat } = await request.json();
@@ -34,8 +31,6 @@ export async function POST(request: Request) {
     const baru = await prisma.$transaction(async (tx) => {
       const customerBaru = await tx.customer.create({ data: { nama, kontak, alamat } });
 
-      // Rekam aksi tambah customer
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -43,22 +38,20 @@ export async function POST(request: Request) {
           aksi: "CREATE_MASTER_CUSTOMER",
           nomorNota: "-",
           dataLama: JSON.stringify({ pesan: "Data baru belum terdaftar sebelumnya." }),
-          dataBaru: JSON.stringify({ barang: [{ nama: customerBaru.nama, qty: 1 }] }) // Format qty trik agar tabel pop-up membaca nama customernya
+          dataBaru: JSON.stringify({ barang: [{ nama: customerBaru.nama, qty: 1 }] })
         }
       });
-
       return customerBaru;
     });
 
     return NextResponse.json(baru, { status: 201 });
-  } catch (error) {
+  } catch (error: unknown) {
+    console.error("Gagal simpan data:", error);
     return NextResponse.json({ error: "Gagal simpan data" }, { status: 500 });
   }
 }
 
-// ==========================================
-// UPDATE: Edit Data Customer & REKAM LOG
-// ==========================================
+// 3. PUT
 export async function PUT(request: Request) {
   try {
     const { id, nama, kontak, alamat } = await request.json();
@@ -75,7 +68,6 @@ export async function PUT(request: Request) {
         data: { nama, kontak, alamat }
       });
 
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -86,19 +78,20 @@ export async function PUT(request: Request) {
           dataBaru: JSON.stringify({ barang: [{ nama: customerUpdate.nama, qty: 1 }] })
         }
       });
-
       return customerUpdate;
     });
 
     return NextResponse.json(updateData, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Gagal mengupdate data" }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+        console.error("Gagal update data:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Gagal mengupdate data" }, { status: 500 });
   }
 }
 
-// ==========================================
-// DELETE: Hapus Data Customer & REKAM LOG
-// ==========================================
+// 4. DELETE
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -113,7 +106,6 @@ export async function DELETE(request: Request) {
 
       await tx.customer.delete({ where: { id } });
 
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -127,7 +119,11 @@ export async function DELETE(request: Request) {
     });
 
     return NextResponse.json({ message: "Berhasil dihapus & log direkam" }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Gagal menghapus data" }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+        console.error("Gagal hapus data:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Gagal menghapus data" }, { status: 500 });
   }
 }

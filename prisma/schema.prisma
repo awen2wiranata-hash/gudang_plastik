@@ -1,4 +1,3 @@
-// Ini adalah pengaturan dasar Prisma untuk terhubung ke PostgreSQL
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,11 +13,14 @@ datasource db {
 model Barang {
   id           String   @id @default(cuid())
   kodeBarang   String   @unique
-  namaBarang   String   // Contoh: Gelas Plastik 16oz, Mika Bento, Thinwall 500ml
+  namaBarang   String   
   kategori     String?
   stokSekarang Int      @default(0) 
   leadTime     Int      @default(1) 
   
+  isAktif Boolean @default(true)
+  
+
   riwayatMasuk  BarangMasuk[]
   riwayatKeluar BarangKeluar[]
   dataPeramalan Peramalan[]
@@ -27,9 +29,7 @@ model Barang {
   updatedAt    DateTime @updatedAt
 }
 
-// ==========================================
-// FITUR PEMASOK / PRODUSEN (BARANG MASUK)
-// ==========================================
+
 
 // 3. Tabel Supplier (Pabrik Plastik)
 model Supplier {
@@ -74,9 +74,7 @@ model BarangMasuk {
 }
 
 
-// ==========================================
-// FITUR CUSTOMER (BARANG KELUAR)
-// ==========================================
+
 
 // 6. Tabel Customer (Pelanggan)
 model Customer {
@@ -121,9 +119,7 @@ model BarangKeluar {
 }
 
 
-// ==========================================
-// FITUR ANALITIK / PERAMALAN SMA
-// ==========================================
+
 
 // 9. Tabel Peramalan
 model Peramalan {
@@ -157,9 +153,7 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
-// ==========================================
-// 🛡️ 🕵️ FITUR TAMBAHAN KEAMANAN: MONITOR AUDIT LOG (FORENSIK DIGITAL)
-// ==========================================
+
 model AuditLog {
   id        String   @id @default(cuid())
   username  String   // Nama akun petugas (Budi, Admin, dll)

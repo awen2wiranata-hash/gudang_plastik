@@ -28,7 +28,8 @@ export async function GET() {
       ]
     });
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
+    console.error("Gagal mengambil data transaksi keluar:", error);
     return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
 }
@@ -217,8 +218,6 @@ export async function PUT(request: Request) {
         barang: txUpdate.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
       });
 
-      // 🔥 REKAM JEJAK EDIT KE AUDIT LOG
-      // @ts-ignore
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -276,8 +275,6 @@ export async function DELETE(request: Request) {
         });
         await tx.transaksiKeluar.delete({ where: { id } });
 
-        // 🔥 REKAM JEJAK HAPUS KE AUDIT LOG
-        // @ts-ignore
         await tx.auditLog.create({
           data: {
             username: actor.username,
@@ -291,8 +288,12 @@ export async function DELETE(request: Request) {
       }
     });
 
-    return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+        console.error("Gagal menghapus transaksi:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Gagal menghapus data transaksi" }, { status: 500 });
   }
 }

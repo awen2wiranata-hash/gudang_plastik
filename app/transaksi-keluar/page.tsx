@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Select from "react-select";
+import Select, { StylesConfig } from "react-select";
 import { Eye, Trash2, X, Plus, List, FileText, CheckCircle, Upload, AlertCircle } from "lucide-react";
 import * as xlsx from "xlsx";
 
@@ -17,9 +17,20 @@ type TabItem = {
   id: string; title: string; type: "RIWAYAT" | "FORM"; dataEdit?: RiwayatKeluar;
 };
 
+// --- TAMBAHAN TIPE UNTUK MENGHILANGKAN ERROR 'ANY' ---
+type SelectOption = { value: string; label: string };
+
+interface ExcelRow {
+  "Nama Barang"?: string;
+  "Jumlah"?: number | string;
+  "Qty"?: number | string;
+  "QTY"?: number | string;
+  "Quantity"?: number | string;
+}
+
 // 🎨 GAYA KUSTOM UNTUK DROP-DOWN REACT-SELECT AGAR HITAM PEKAT & KONTRAS TINGGI
-const customSelectStyles = {
-  control: (base: any, state: any) => ({
+const customSelectStyles: StylesConfig<SelectOption, false> = {
+  control: (base, state) => ({
     ...base,
     borderRadius: "0.5rem",
     borderColor: state.isFocused ? "#2563eb" : "#d1d5db",
@@ -30,7 +41,7 @@ const customSelectStyles = {
       borderColor: "#9ca3af"
     }
   }),
-  option: (base: any, state: any) => ({
+  option: (base, state) => ({
     ...base,
     backgroundColor: state.isSelected 
       ? "#2563eb" 
@@ -45,26 +56,26 @@ const customSelectStyles = {
       backgroundColor: "#3b82f6"
     }
   }),
-  singleValue: (base: any) => ({
+  singleValue: (base) => ({
     ...base,
     color: "#111827", // Huruf item terpilih hitam pekat
     fontWeight: "600",
     fontSize: "0.875rem"
   }),
-  placeholder: (base: any) => ({
+  placeholder: (base) => ({
     ...base,
     color: "#9ca3af",
     fontSize: "0.875rem"
   }),
-  input: (base: any) => ({
+  input: (base) => ({
     ...base,
     color: "#111827"
   }),
-  menu: (base: any) => ({
+  menu: (base) => ({
     ...base,
     borderRadius: "0.5rem",
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-    border: "1px border-gray-200"
+    border: "1px solid #e5e7eb"
   })
 };
 
@@ -88,14 +99,14 @@ const FormTransaksiTab = ({
   const [barangTidakKetemu, setBarangTidakKetemu] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
-  const opsiCustomer = daftarCustomer.map((sup) => ({ value: sup.id, label: sup.nama }));
-  const opsiBarang = daftarBarang.map((brg) => ({
+  const opsiCustomer: SelectOption[] = daftarCustomer.map((sup) => ({ value: sup.id, label: sup.nama }));
+  const opsiBarang: SelectOption[] = daftarBarang.map((brg) => ({
     value: brg.id, label: `[${brg.kodeBarang}] ${brg.namaBarang} (Sisa Stok: ${brg.stokSekarang} Pcs)`
   }));
 
   const ubahKeranjang = (index: number, field: keyof DetailKeluar, value: string | number) => {
     const isiBaru = [...keranjang];
-    isiBaru[index] = { ...isiBaru[index], [field]: value };
+    isiBaru[index] = { ...isiBaru[index], [field]: value } as DetailKeluar;
     setKeranjang(isiBaru);
   };
 
@@ -116,14 +127,16 @@ const FormTransaksiTab = ({
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
+        if (!bstr) return;
+        
         const workbook = xlsx.read(bstr, { type: "binary" });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const dataExcel = xlsx.utils.sheet_to_json(worksheet);
+        const dataExcel = xlsx.utils.sheet_to_json<ExcelRow>(worksheet);
 
         const newKeranjang: DetailKeluar[] = [];
         const notFound: string[] = [];
 
-        dataExcel.forEach((row: any) => {
+        dataExcel.forEach((row) => {
           const namaDariExcel = String(row["Nama Barang"] || "").trim();
           const rawQty = row["Jumlah"] ?? row["Qty"] ?? row["QTY"] ?? row["Quantity"] ?? "1";
           const qtyDariExcel = parseInt(String(rawQty).trim(), 10) || 1;
@@ -153,7 +166,7 @@ const FormTransaksiTab = ({
           setBarangTidakKetemu(notFound);
         }
 
-      } catch (error) {
+      } catch {
         alert("Gagal membaca file excel. Pastikan format kolom benar.");
       } finally {
         setIsImporting(false);
@@ -185,8 +198,8 @@ const FormTransaksiTab = ({
         const errorData = await res.json();
         alert(errorData.error || "Gagal menyimpan transaksi.");
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
+      console.error("Terjadi kesalahan pada sistem.");
     }
   };
 
@@ -331,7 +344,7 @@ const FormTransaksiTab = ({
 export default function TransaksiKeluarPage() {
   const [daftarCustomer, setDaftarCustomer] = useState<Customer[]>([]);
   const [daftarBarang, setDaftarBarang] = useState<Barang[]>([]);
-  const [RiwayatKeluar, setRiwayatKeluar] = useState<RiwayatKeluar[]>([]);
+  const [riwayatKeluar, setRiwayatKeluar] = useState<RiwayatKeluar[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [tabs, setTabs] = useState<TabItem[]>([{ id: "riwayat", title: "Riwayat Keluar", type: "RIWAYAT" }]);
@@ -340,13 +353,13 @@ export default function TransaksiKeluarPage() {
   const fetchData = async () => {
     try {
       const [resSup, resBar, resRiw] = await Promise.all([
-        fetch("/api/customer"), fetch("/api/barang"), fetch("/api/transaksi-keluar")
+        fetch("/api/customer"), fetch("/api/barang?activeOnly=true"), fetch("/api/transaksi-keluar")
       ]);
       setDaftarCustomer(await resSup.json());
       setDaftarBarang(await resBar.json());
       setRiwayatKeluar(await resRiw.json());
-    } catch (error) {
-      console.error("Gagal mengambil data", error);
+    } catch {
+      console.error("Gagal mengambil data dari server");
     } finally {
       setLoading(false);
     }
@@ -395,8 +408,8 @@ export default function TransaksiKeluarPage() {
         } else {
           alert("Gagal menghapus transaksi.");
         }
-      } catch (error) {
-        console.error(error);
+      } catch {
+        console.error("Kesalahan jaringan saat menghapus data.");
       }
     }
   };
@@ -453,9 +466,9 @@ export default function TransaksiKeluarPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-50 text-sm font-medium text-gray-700">
                   {loading ? <tr><td colSpan={5} className="text-center py-10 text-gray-400 font-bold">Sedang memuat data transaksi...</td></tr> : 
-                   RiwayatKeluar.length === 0 ? <tr><td colSpan={5} 
+                   riwayatKeluar.length === 0 ? <tr><td colSpan={5} 
                    className="text-center py-10 text-gray-400 font-bold">Belum ada transaksi. Buka Tab Transaksi Baru untuk menambah.</td></tr> :
-                   RiwayatKeluar.map((riwayat) => (
+                   riwayatKeluar.map((riwayat) => (
                     <tr key={riwayat.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-bold">{new Date(riwayat.tanggal).toLocaleDateString('id-ID')}</td>
                       <td className="px-6 py-4 whitespace-nowrap font-extrabold text-gray-800">{riwayat.nomorNota}</td>

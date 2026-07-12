@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as xlsx from "xlsx"; // Pastikan library ini sudah terinstall
+import { Search } from "lucide-react"; // 🛠️ TAMBAH ICON: Search
+import * as xlsx from "xlsx";
 
 type Barang = {
   id: string;
@@ -9,6 +10,7 @@ type Barang = {
   namaBarang: string;
   kategori: string | null;
   stokSekarang: number;
+  isAktif: boolean;
 };
 
 type ImportLogData = {
@@ -35,9 +37,13 @@ export default function MasterBarangPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importLog, setImportLog] = useState<ImportLogData | null>(null);
 
+  // 🛠️ STATE BARU: Untuk pencarian dan filter status barang
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"SEMUA" | "AKTIF" | "NONAKTIF">("SEMUA");
+
   const fetchBarang = async () => {
     try {
-      const res = await fetch("/api/barang");
+      const res = await fetch("/api/barang?activeOnly=false");
       const data = await res.json();
       if (Array.isArray(data)) setDaftarBarang(data);
     } catch (error) {
@@ -79,6 +85,36 @@ export default function MasterBarangPage() {
     }
   };
 
+  // FUNGSI TOGGLE STATUS (AKTIF / NONAKTIF)
+  const handleToggleAktif = async (id: string, nama: string, statusSekarang: boolean) => {
+    const tindakan = statusSekarang ? "menonaktifkan" : "mengaktifkan kembali";
+    const konfirmasi = confirm(`Apakah Anda yakin ingin ${tindakan} produk plastik "${nama}"?\n\nBarang yang dinonaktifkan tidak akan muncul pada pilihan form transaksi keluar/masuk baru.`);
+    
+    if (konfirmasi) {
+      try {
+        const res = await fetch("/api/barang", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            id: id, 
+            isToggleStatus: true, 
+            isAktif: !statusSekarang
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          fetchBarang(); 
+        } else {
+          alert(data.error || "Gagal memperbarui status barang.");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+
   // FUNGSI IMPORT EXCEL
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,10 +131,8 @@ export default function MasterBarangPage() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        // Ubah Excel jadi JSON
         const jsonArray = xlsx.utils.sheet_to_json(worksheet);
 
-        // Kirim ke Backend
         const res = await fetch("/api/import/barang", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -106,9 +140,14 @@ export default function MasterBarangPage() {
         });
 
         const result = await res.json();
-        setImportLog(result);
+        const responseData: ImportLogData = {
+          sukses: result.sukses ?? 0,
+          gagal: result.gagal ?? 0,
+          detailGagal: result.detailGagal ?? []
+        };
+        setImportLog(responseData);
         
-        if (result.sukses > 0) {
+        if (responseData.sukses > 0) {
           fetchBarang(); 
         }
       } catch (error) {
@@ -116,7 +155,7 @@ export default function MasterBarangPage() {
         alert("Gagal membaca file excel. Pastikan format benar.");
       } finally {
         setIsImporting(false);
-        e.target.value = ""; // Reset input file
+        e.target.value = ""; 
       }
     };
     reader.readAsBinaryString(file);
@@ -144,11 +183,13 @@ export default function MasterBarangPage() {
     if (konfirmasi) {
       try {
         const res = await fetch(`/api/barang?id=${id}`, { method: "DELETE" });
+        const data = await res.json();
+        
         if (res.ok) {
           alert("Barang berhasil dihapus!");
           fetchBarang();
         } else {
-          alert("Gagal menghapus. Kemungkinan barang ini sedang dipakai di data transaksi.");
+          alert(data.error || "Gagal menghapus data barang.");
         }
       } catch (error) {
         console.error("Error:", error);
@@ -156,8 +197,21 @@ export default function MasterBarangPage() {
     }
   };
 
+  // 🛠️ LOGIKA LOGIKAL FILTER (SEARCH & STATUS TOGGLE)
+  const filteredBarang = daftarBarang.filter((item) => {
+    const cocokKataKunci = 
+      item.namaBarang.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.kodeBarang.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const cocokStatus = 
+      statusFilter === "SEMUA" ||
+      (statusFilter === "AKTIF" && item.isAktif) ||
+      (statusFilter === "NONAKTIF" && !item.isAktif);
+
+    return cocokKataKunci && cocokStatus;
+  });
+
   return (
-    /* MODIFIKASI: max-w-none w-full agar layout memenuhi kanan dan kiri layar laptop */
     <div className="p-8 max-w-none w-full px-4 md:px-12 bg-gray-50 min-h-screen">
       
       {/* HEADER DENGAN TOMBOL IMPORT */}
@@ -165,7 +219,7 @@ export default function MasterBarangPage() {
         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">📦 Master Data Barang Plastik</h1>
         
         <label className={`flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg cursor-pointer transition-all shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
-          {isImporting ? "Memproses Data..." : "📥 Import Data Excel"}
+          {isImporting ? "Memproses Data..." : "Import Data Excel"}
           <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="hidden" />
         </label>
       </div>
@@ -187,7 +241,7 @@ export default function MasterBarangPage() {
         </div>
       )}
 
-      {/* FORM INPUT / EDIT - Memenuhi Kanan Kiri */}
+      {/* FORM INPUT / EDIT */}
       <div className={`p-6 rounded-xl shadow-sm mb-8 border transition-all ${modeEdit ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
         <div className="flex justify-between items-center mb-5">
           <h2 className={`text-xl font-bold ${modeEdit ? 'text-amber-800' : 'text-gray-800'}`}>
@@ -201,7 +255,6 @@ export default function MasterBarangPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
-          {/* MODIFIKASI: Menambahkan text-gray-900 font-medium agar huruf saat diketik menjadi hitam pekat */}
           <div className="w-full md:flex-1">
             <label className="block text-sm font-bold text-gray-700 mb-1.5">Kode Barang</label>
             <input 
@@ -240,13 +293,49 @@ export default function MasterBarangPage() {
         </form>
       </div>
 
-      {/* TABEL DATA - Memenuhi Kanan Kiri */}
+      {/* TABEL DATA & KOMPONEN FILTER BARU */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
-        <div className="p-5 border-b border-gray-100 bg-white">
-          <h2 className="text-lg font-bold text-gray-800">Daftar Keseluruhan Katalog Barang Gudang</h2>
+        
+        {/* 🛠️ MODIFIKASI HEADER TABEL: Penyematan Search Bar & Filter Status */}
+        <div className="p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row gap-4 justify-between items-center w-full">
+          <h2 className="text-lg font-bold text-gray-800 w-full md:w-auto">Daftar Keseluruhan Katalog Barang Gudang</h2>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+            {/* INPUT KOTAK PENCARIAN (SEARCH BAR) */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" 
+                placeholder="Cari kode atau nama barang..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 text-gray-900 font-medium rounded-lg outline-none bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 font-bold text-xs">✕</button>
+              )}
+            </div>
+
+            {/* SEGMENTED BUTTON CONTROL (TAB FILTER STATUS) */}
+            <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200 w-full sm:w-auto text-center shadow-inner">
+              {(["SEMUA", "AKTIF", "NONAKTIF"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setStatusFilter(filter)}
+                  className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-black tracking-wide rounded-md transition-all ${
+                    statusFilter === filter 
+                      ? "bg-white text-blue-600 shadow-sm border border-gray-200/50" 
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  {filter === "SEMUA" ? "Semua" : filter === "AKTIF" ? "Aktif" : "Nonaktif"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         
-        {/* Pembungkus agar tabel responsif penuh */}
         <div className="overflow-x-auto w-full">
           <table className="min-w-full divide-y divide-gray-200 w-full">
             <thead className="bg-gray-50">
@@ -255,29 +344,50 @@ export default function MasterBarangPage() {
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Barang</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Kategori</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Stok Saat Ini</th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="text-center py-10 font-medium text-gray-400">Sedangkan memuat katalog data...</td></tr>
-              ) : daftarBarang.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-10 font-medium text-gray-400">Belum ada data barang di database.</td></tr>
+                <tr><td colSpan={6} className="text-center py-10 font-medium text-gray-400">Sedangkan memuat katalog data...</td></tr>
+              ) : filteredBarang.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-10 font-medium text-gray-400">Data barang tidak ditemukan.</td></tr>
               ) : (
-                daftarBarang.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                /* 🛠️ MODIFIKASI MAP: Menggunakan array 'filteredBarang' hasil penyaringan */
+                filteredBarang.map((item) => (
+                  <tr key={item.id} className={`transition-colors ${!item.isAktif ? 'bg-gray-100/70 text-gray-400 select-none' : 'hover:bg-gray-50'}`}>
                     <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900">{item.kodeBarang}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{item.namaBarang}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-medium">{item.kategori || "-"}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap font-medium ${item.isAktif ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                      {item.namaBarang}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{item.kategori || "-"}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className="px-4 py-1.5 inline-flex text-xs leading-5 font-bold rounded-full bg-green-50 text-green-700 border border-green-200">
+                      <span className={`px-4 py-1.5 inline-flex text-xs leading-5 font-bold rounded-full border ${item.isAktif ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-200 text-gray-500 border-gray-300'}`}>
                         {item.stokSekarang} Pcs
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className={`px-3 py-1 inline-flex text-xs font-black tracking-wide rounded-full border shadow-sm ${item.isAktif ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-300 text-gray-600 border-gray-400'}`}>
+                        {item.isAktif ? "AKTIF" : "NONAKTIF / ARSIP"}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                      <div className="flex justify-center gap-3">
-                        <button onClick={() => klikEdit(item)} className="text-amber-600 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-lg transition-colors border border-amber-200">Edit</button>
-                        <button onClick={() => klikHapus(item.id, item.namaBarang)} className="text-red-600 hover:text-red-900 font-bold bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors border border-red-200">Hapus</button>
+                      <div className="flex justify-center gap-2.5">
+                        {item.isAktif && (
+                          <button onClick={() => klikEdit(item)} className="text-amber-600 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors border border-amber-200 text-xs">Edit</button>
+                        )}
+                        <button 
+                          onClick={() => handleToggleAktif(item.id, item.namaBarang, item.isAktif)}
+                          className={`font-bold px-3 py-1.5 rounded-lg transition-colors border text-xs ${
+                            item.isAktif 
+                              ? 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-300' 
+                              : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                          }`}
+                        >
+                          {item.isAktif ? "Nonaktifkan" : "Aktifkan"}
+                        </button>
+                        <button onClick={() => klikHapus(item.id, item.namaBarang)} className="text-red-600 hover:text-red-900 font-bold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs">Hapus</button>
                       </div>
                     </td>
                   </tr>

@@ -1,66 +1,58 @@
 import { Package, Users, Truck, AlertTriangle, Activity, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma"; // Pastikan path ini sesuai dengan letak prisma client kamu
+import { prisma } from "@/lib/prisma";
 
-// Tambahkan revalidate agar halaman otomatis me-refresh data setiap beberapa detik (opsional)
 export const revalidate = 0; 
 
 export default async function DashboardPage() {
-  // ====================================================================
-  // 1. MENGAMBIL DATA DARI DATABASE (BACKEND)
-  // ====================================================================
-  
-  // Mengambil total angka untuk kartu ringkasan
-  const totalBarang = await prisma.barang.count();
+  const totalBarang = await prisma.barang.count({
+    where: { isAktif: true }
+  });
   const totalPemasok = await prisma.supplier.count();
   const totalCustomer = await prisma.customer.count();
   
-  // Mengambil jumlah barang yang stoknya di bawah 10 (Stok Kritis)
   const stokKritisCount = await prisma.barang.count({
-    where: { stokSekarang: { lt: 10 } }
+    where: { 
+      stokSekarang: { lt: 10 },
+      isAktif: true
+    }
   });
 
-  // Mengambil daftar barang yang stoknya kritis untuk ditampilkan di panel kanan
   const barangKritis = await prisma.barang.findMany({
-    where: { stokSekarang: { lt: 10 } },
-    take: 5, // Tampilkan maksimal 5 saja
-    orderBy: { stokSekarang: 'asc' } // Urutkan dari stok yang paling sedikit
+    where: { 
+      stokSekarang: { lt: 10 },
+      isAktif: true
+    },
+    take: 5, 
+    orderBy: { stokSekarang: 'asc' } 
   });
 
-  // Mengambil 5 riwayat transaksi keluar (penjualan) terbaru
   const transaksiTerbaru = await prisma.transaksiKeluar.findMany({
     take: 5,
     orderBy: { tanggal: 'desc' },
     include: { 
-      customer: true, // Ambil juga data nama pelanggannya dari tabel Customer
+      customer: true, 
     }
   });
 
-  // ====================================================================
-  // 2. TAMPILAN ANTARMUKA (FRONTEND)
-  // ====================================================================
   return (
     <div className="p-6 md:p-8 bg-gray-50 min-h-screen">
-      {/* Header Dashboard */}
       <div className="mb-8">
         <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Dashboard Overview</h1>
         <p className="text-gray-500 text-sm mt-1">Selamat datang di Sistem Informasi Manajemen Gudang Family Jaya.</p>
       </div>
 
-      {/* Barisan Widget Statistik (Terhubung Database) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Card 1 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
           <div className="p-4 bg-blue-50 text-blue-600 rounded-xl">
             <Package size={24} />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Total Barang</p>
+            <p className="text-sm font-medium text-gray-500">Total Barang Aktif</p>
             <h3 className="text-2xl font-bold text-gray-900">{totalBarang} <span className="text-sm font-normal text-gray-400">Item</span></h3>
           </div>
         </div>
 
-        {/* Card 2 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
           <div className="p-4 bg-green-50 text-green-600 rounded-xl">
             <Truck size={24} />
@@ -71,7 +63,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 3 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
           <div className="p-4 bg-purple-50 text-purple-600 rounded-xl">
             <Users size={24} />
@@ -82,7 +73,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 4 - Alert Stok Kritis */}
         <div className="bg-gradient-to-br from-red-50 to-white p-6 rounded-2xl shadow-sm border border-red-100 flex items-center gap-4">
           <div className="p-4 bg-red-100 text-red-600 rounded-xl animate-pulse">
             <AlertTriangle size={24} />
@@ -94,10 +84,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Area Tabel & Informasi Lanjutan */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Kolom Kiri: Tabel Transaksi Terakhir */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-50 flex justify-between items-center">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -140,7 +127,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Kolom Kanan: Peringatan Stok Aktual */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-50">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -169,7 +155,6 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
