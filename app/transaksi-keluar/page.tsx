@@ -136,23 +136,34 @@ const FormTransaksiTab = ({
         const newKeranjang: DetailKeluar[] = [];
         const notFound: string[] = [];
 
-        dataExcel.forEach((row) => {
-          const namaDariExcel = String(row["Nama Barang"] || "").trim();
-          const rawQty = row["Jumlah"] ?? row["Qty"] ?? row["QTY"] ?? row["Quantity"] ?? "1";
-          const qtyDariExcel = parseInt(String(rawQty).trim(), 10) || 1;
+  dataExcel.forEach((row) => {
+  const namaDariExcel = String(row["Nama Barang"] || "").trim();
+  
+  // 1. Ubah nilai default dari "1" menjadi "0"
+  const rawQty = row["Jumlah"] ?? row["Qty"] ?? row["QTY"] ?? row["Quantity"] ?? "0";
+  
+  // 2. Parse murni tanpa paksaan || 1. Jika teks ngawur (NaN), jadikan 0
+  let qtyDariExcel = parseInt(String(rawQty).trim(), 10);
+  if (isNaN(qtyDariExcel)) {
+    qtyDariExcel = 0;
+  }
 
-          if (!namaDariExcel) return;
+  if (!namaDariExcel) return;
 
-          const matchedBarang = daftarBarang.find(
-            (b) => b.namaBarang.toLowerCase() === namaDariExcel.toLowerCase()
-          );
+  const matchedBarang = daftarBarang.find(
+    (b) => b.namaBarang.toLowerCase() === namaDariExcel.toLowerCase()
+  );
 
-          if (matchedBarang) {
-            newKeranjang.push({ barangId: matchedBarang.id, jumlah: qtyDariExcel });
-          } else {
-            notFound.push(namaDariExcel);
-          }
-        });
+  if (matchedBarang) {
+    // 3. FILTER: Hanya masukkan ke keranjang JIKA jumlah lebih dari 0
+    if (qtyDariExcel > 0) {
+      newKeranjang.push({ barangId: matchedBarang.id, jumlah: qtyDariExcel });
+    }
+  } else {
+    // Tetap masukkan ke daftar tidak ketemu jika barang memang tidak ada di database
+    notFound.push(namaDariExcel);
+  }
+});
 
         if (newKeranjang.length > 0) {
           if (keranjang.length === 1 && keranjang[0].barangId === "") {

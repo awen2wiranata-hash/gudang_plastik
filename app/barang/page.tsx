@@ -41,6 +41,8 @@ export default function MasterBarangPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"SEMUA" | "AKTIF" | "NONAKTIF">("SEMUA");
 
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Barang; direction: "asc" | "desc" } | null>(null);
+
   const fetchBarang = async () => {
     try {
       const res = await fetch("/api/barang?activeOnly=false");
@@ -211,6 +213,38 @@ export default function MasterBarangPage() {
     return cocokKataKunci && cocokStatus;
   });
 
+// 🛠️ FUNGSI BARU: Untuk mengubah arah sorting saat judul diklik
+  const requestSort = (key: keyof Barang) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc"; // Jika sudah A-Z, ubah ke Z-A
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // 🛠️ LOGIKA BARU: Mengurutkan data yang sudah difilter
+  const sortedBarang = [...filteredBarang].sort((a, b) => {
+    if (!sortConfig) return 0; // Jika tidak ada sort, biarkan urutan asli
+    
+    const { key, direction } = sortConfig;
+    let aValue = a[key] ?? "";
+    let bValue = b[key] ?? "";
+
+    // Ubah ke huruf kecil semua jika berupa teks agar A-Z akurat
+    if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+    if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+    if (aValue < bValue) return direction === "asc" ? -1 : 1;
+    if (aValue > bValue) return direction === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  // 🛠️ KOMPONEN ICON PANAH KECIL UNTUK JUDUL TABEL
+  const SortIcon = ({ columnKey }: { columnKey: keyof Barang }) => {
+    if (sortConfig?.key !== columnKey) return <span className="ml-1 text-gray-300">↕</span>;
+    return sortConfig.direction === "asc" ? <span className="ml-1 text-blue-600">▲</span> : <span className="ml-1 text-blue-600">▼</span>;
+  };
+
   return (
     <div className="p-8 max-w-none w-full px-4 md:px-12 bg-gray-50 min-h-screen">
       
@@ -254,8 +288,8 @@ export default function MasterBarangPage() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="w-full md:flex-1">
+<form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="w-full md:flex-1">
             <label className="block text-sm font-bold text-gray-700 mb-1.5">Kode Barang</label>
             <input 
               type="text" 
@@ -337,31 +371,40 @@ export default function MasterBarangPage() {
         </div>
         
         <div className="overflow-x-auto w-full">
-          <table className="min-w-full divide-y divide-gray-200 w-full">
+      <table className="min-w-full divide-y divide-gray-200 w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Kode</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Barang</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Kategori</th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Stok Saat Ini</th>
+                <th onClick={() => requestSort('kodeBarang')} className="cursor-pointer hover:bg-gray-200 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider transition-colors">
+                  Kode <SortIcon columnKey="kodeBarang" />
+                </th>
+                <th onClick={() => requestSort('namaBarang')} className="cursor-pointer hover:bg-gray-200 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider transition-colors">
+                  Nama Barang <SortIcon columnKey="namaBarang" />
+                </th>
+                <th onClick={() => requestSort('kategori')} className="cursor-pointer hover:bg-gray-200 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider transition-colors">
+                  Kategori <SortIcon columnKey="kategori" />
+                </th>
+                <th onClick={() => requestSort('stokSekarang')} className="cursor-pointer hover:bg-gray-200 px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider transition-colors">
+                  Stok Saat Ini <SortIcon columnKey="stokSekarang" />
+                </th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={6} className="text-center py-10 font-medium text-gray-400">Sedangkan memuat katalog data...</td></tr>
-              ) : filteredBarang.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-10 font-medium text-gray-400">Sedang memuat katalog data...</td></tr>
+              ) : sortedBarang.length === 0 ? (
                 <tr><td colSpan={6} className="text-center py-10 font-medium text-gray-400">Data barang tidak ditemukan.</td></tr>
               ) : (
-                /* 🛠️ MODIFIKASI MAP: Menggunakan array 'filteredBarang' hasil penyaringan */
-                filteredBarang.map((item) => (
+                /* 🛠️ UBAH: Ganti filteredBarang.map menjadi sortedBarang.map */
+                sortedBarang.map((item) => (
                   <tr key={item.id} className={`transition-colors ${!item.isAktif ? 'bg-gray-100/70 text-gray-400 select-none' : 'hover:bg-gray-50'}`}>
+                    {/* ... isi tr dan td sama persis seperti kode asli Anda ... */}
                     <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900">{item.kodeBarang}</td>
                     <td className={`px-6 py-4 whitespace-nowrap font-medium ${item.isAktif ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
                       {item.namaBarang}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium">{item.kategori || "-"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-800">{item.kategori || "-"}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <span className={`px-4 py-1.5 inline-flex text-xs leading-5 font-bold rounded-full border ${item.isAktif ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-200 text-gray-500 border-gray-300'}`}>
                         {item.stokSekarang} Pcs

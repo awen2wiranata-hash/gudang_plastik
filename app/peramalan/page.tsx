@@ -102,7 +102,7 @@ export default function PeramalanPage() {
       {/* HEADER UTAMA WEB */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 pb-6 border-b border-gray-200 print:hidden gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">📊 Laporan & Analisis Peramalan</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Laporan & Analisis Peramalan</h1>
           <p className="text-gray-500 mt-1.5 font-medium text-sm">Siklus Evaluasi Stok Mingguan — Simple Moving Average (SMA) & Reorder Point (ROP)</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
@@ -175,7 +175,7 @@ export default function PeramalanPage() {
         {/* --- PANEL ATAS TABEL: JUDUL & SEARCH BAR --- */}
         <div className="p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            📋 Rincian Analisis Data <span className="text-xs bg-gray-100 border text-gray-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide">{filterAktiv}</span>
+            Rincian Analisis Data <span className="text-xs bg-gray-100 border text-gray-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide">{filterAktiv}</span>
           </h2>
           
           {/* SEARH BAR INPUT FIELD (Huruf Hitam Kontras Tinggi) */}

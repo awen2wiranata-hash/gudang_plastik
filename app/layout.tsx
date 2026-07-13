@@ -200,12 +200,9 @@ export default function RootLayout({
               <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 z-10 print:hidden">
                 <div className="flex-1 max-w-md">
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={18} className="text-gray-400" /></div>
-                    <input type="text" className="block w-full pl-10 pr-3 py-2.5 border border-transparent rounded-full text-sm bg-gray-100 placeholder-gray-500 focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-50 transition-all" placeholder="Cari menu atau data..." />
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
-                  <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"><Bell size={22} /><span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span></button>
                   <div className="flex items-center gap-3 pl-6 border-l border-gray-200 cursor-pointer group">
                     <div className="text-right hidden md:block">
                       <p className="text-sm font-bold text-gray-700 group-hover:text-blue-600">Wendy Wiranata</p>
