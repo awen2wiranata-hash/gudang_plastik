@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       include: {
         _count: { select: { riwayatMasuk: true, riwayatKeluar: true } }
       },
-      orderBy: [{ isAktif: 'desc' }, { createdAt: 'desc' }]
+      orderBy: [{ isAktif: 'asc' }, { createdAt: 'asc' }]
     });
     return NextResponse.json(semuaBarang, { status: 200 });
   } catch (error: unknown) {
