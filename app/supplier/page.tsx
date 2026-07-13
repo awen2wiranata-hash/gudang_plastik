@@ -102,7 +102,7 @@ export default function MasterSupplierPage() {
   return (
     /* MODIFIKASI: max-w-none w-full agar layout memenuhi kanan dan kiri layar */
     <div className="p-8 max-w-none w-full px-4 md:px-12 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight">🏢 Master Pemasok / Pabrik</h1>
+      <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight">Master Pemasok / Pabrik</h1>
 
       {/* Form Card Dinamis - Memenuhi Layar */}
       <div className={`p-6 rounded-xl shadow-sm mb-8 border transition-all ${editingId ? "bg-amber-50 border-amber-300" : "bg-white border-gray-200"}`}>

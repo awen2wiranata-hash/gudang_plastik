@@ -216,7 +216,7 @@ export default function MasterBarangPage() {
       
       {/* HEADER DENGAN TOMBOL IMPORT */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">📦 Master Data Barang Plastik</h1>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Master Data Barang Plastik</h1>
         
         <label className={`flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg cursor-pointer transition-all shadow-sm ${isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
           {isImporting ? "Memproses Data..." : "Import Data Excel"}

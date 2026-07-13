@@ -51,7 +51,7 @@ export default function LoginPage() {
             <Package size={32} className="text-blue-600" />
           </div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Family Jaya</h1>
-          <p className="text-blue-100 text-sm mt-1 font-medium">Sistem Manajemen Gudang Terpadu</p>
+          <p className="text-blue-100 text-sm mt-1 font-medium">Sistem Manajemen Gudang</p>
         </div>
 
         {/* 📄 Bagian Form & Input */}
@@ -110,7 +110,7 @@ export default function LoginPage() {
           </form>
           
           <div className="mt-8 text-center text-xs text-gray-400">
-            &copy; 2026 Wendy Wiranata - Skripsi Sistem Informasi
+            &copy; 2026 Wendy Wiranata
           </div>
         </div>
 
