@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers"; // Untuk melacak siapa aktor pelakunya
+import { cookies } from "next/headers";
 
-// 🛠️ FIX 1: Menggunakan async karena cookies() di Next.js versi baru harus di-await
+// 🛠️ Fungsi pembantu pencari aktor dari cookies
 async function getUserFromCookie() {
   const cookieStore = await cookies(); 
   const token = cookieStore.get("token")?.value;
@@ -35,55 +35,43 @@ export async function GET() {
 }
 
 // ==========================================
-// 2. POST: Transaksi Baru (Kurangi Stok + Auto Urutan Bulanan / Custom Nota)
+// 2. POST: Transaksi Baru (Kurangi Stok + Auto Urutan Nota)
 // ==========================================
 export async function POST(request: Request) {
   try {
     const { nomorNota, customerId, detailBarang, tanggal } = await request.json();
 
-    // Inisialisasi tanggal transaksi (jika kosong gunakan waktu sekarang)
     const tanggalTransaksi = tanggal ? new Date(tanggal) : new Date();
     let nomorNotaFinal = nomorNota ? nomorNota.trim() : "";
 
+    // 🛠️ Tambahkan konfigurasi timeout 30 detik di akhir fungsi transaksi
     const hasil = await prisma.$transaction(async (tx) => {
       
-      // --- LOGIKA AUTO GENERATE NOTA BERDASARKAN URUTAN BULANAN JIKA KOSONG ---
       if (!nomorNotaFinal) {
         const tahun = tanggalTransaksi.getFullYear();
-        const bulan = tanggalTransaksi.getMonth(); // 0 = Januari, 11 = Desember
+        const bulan = tanggalTransaksi.getMonth();
 
-        // Tentukan batas awal dan batas akhir bulan berjalan
         const awalBulan = new Date(tahun, bulan, 1);
         const akhirBulan = new Date(tahun, bulan + 1, 0, 23, 59, 59, 999);
 
-        // Hitung total transaksi keluar yang sudah ada pada bulan tersebut
         const jumlahTransaksiBulanIni = await tx.transaksiKeluar.count({
           where: {
-            tanggal: {
-              gte: awalBulan,
-              lte: akhirBulan,
-            },
+            tanggal: { gte: awalBulan, lte: akhirBulan },
           },
         });
 
-        // Format bulan dan tahun untuk komponen string nota
         const strBulan = String(bulan + 1).padStart(2, '0');
         const strTahun = String(tahun);
-        
-        // Urutan nota baru = jumlah transaksi yang ada + 1 (di-pad 4 digit, misal: 0001)
         const urutanNota = String(jumlahTransaksiBulanIni + 1).padStart(4, '0');
 
-        // Satukan menjadi kode nota: OUT-202606-0001
         nomorNotaFinal = `OUT-${strTahun}${strBulan}-${urutanNota}`;
       }
-      // -------------------------------------------------------------------------
 
-      // Cek apakah nomor nota kustom/otomatis sudah terpakai (Mencegah Crash karena @unique)
       const cekNota = await tx.transaksiKeluar.findUnique({
         where: { nomorNota: nomorNotaFinal }
       });
       if (cekNota) {
-        throw new Error(`Nomor nota [${nomorNotaFinal}] sudah terdaftar di database! Gunakan nomor lain.`);
+        throw new Error(`Nomor nota [${nomorNotaFinal}] sudah terdaftar! Gunakan nomor lain.`);
       }
 
       const nota = await tx.transaksiKeluar.create({
@@ -101,10 +89,10 @@ export async function POST(request: Request) {
         }
       });
 
-      // Kurangi Stok
+      // Validasi dan Kurangi Stok Barang
       for (const item of detailBarang) {
         const barang = await tx.barang.findUnique({ where: { id: item.barangId } });
-        if (!barang || barang.stokSekarang < item.jumlah) {
+        if (!barang || barang.stokSekarang < Number(item.jumlah)) {
           throw new Error(`Stok [${barang?.namaBarang || 'barang'}] tidak cukup!`);
         }
         await tx.barang.update({
@@ -113,6 +101,8 @@ export async function POST(request: Request) {
         });
       }
       return nota;
+    }, {
+      timeout: 30000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
     });
 
     return NextResponse.json(hasil, { status: 201 });
@@ -134,13 +124,13 @@ export async function PUT(request: Request) {
     const actor = await getUserFromCookie();
     const tanggalTransaksi = tanggal ? new Date(tanggal) : new Date();
 
+    // 🛠️ Tambahkan konfigurasi timeout 30 detik di akhir fungsi transaksi
     const hasil = await prisma.$transaction(async (tx) => {
-      // 1. Cari transaksi lama
       const txLama = await tx.transaksiKeluar.findUnique({
         where: { id }, 
         include: { detailBarang: { include: { barang: true } } }
       });
-      if (!txLama) throw new Error("Data transaksi lama tidak ditemukan di database!");
+      if (!txLama) throw new Error("Data transaksi lama tidak ditemukan!");
 
       const snapshotDataLama = JSON.stringify({
         nomorNota: txLama.nomorNota,
@@ -148,7 +138,7 @@ export async function PUT(request: Request) {
         barang: txLama.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
       });
 
-      // 2. Rollback stok lama
+      // 1. Rollback stok lama (Stok dikembalikan dulu)
       for (const item of txLama.detailBarang) {
         await tx.barang.update({
           where: { id: item.barangId },
@@ -156,7 +146,6 @@ export async function PUT(request: Request) {
         });
       }
 
-      // Logika otomatisasi nomor nota jika saat edit kolom sengaja dikosongkan
       let nomorNotaFinal = nomorNota ? nomorNota.trim() : "";
       if (!nomorNotaFinal) {
         const tahun = tanggalTransaksi.getFullYear();
@@ -167,7 +156,7 @@ export async function PUT(request: Request) {
         const jumlahTransaksiBulanIni = await tx.transaksiKeluar.count({
           where: {
             tanggal: { gte: awalBulan, lte: akhirBulan },
-            id: { not: id } // Abaikan nota ini sendiri agar nomor urutan tidak melompat
+            id: { not: id } 
           },
         });
 
@@ -178,7 +167,7 @@ export async function PUT(request: Request) {
         nomorNotaFinal = `OUT-${strTahun}${strBulan}-${urutanNota}`;
       }
 
-      // 3. Update Detail Baru
+      // 2. Hapus detail lama dan ganti dengan detail baru
       const txUpdate = await tx.transaksiKeluar.update({
         where: { id },
         data: {
@@ -188,22 +177,23 @@ export async function PUT(request: Request) {
           detailBarang: {
             deleteMany: {}, 
             create: detailBarang.map((item: { barangId: string; jumlah: number }) => ({
-              barangId: item.barangId, jumlah: Number(item.jumlah), tanggalKeluar: tanggalTransaksi
+              barangId: item.barangId, 
+              jumlah: Number(item.jumlah), 
+              tanggalKeluar: tanggalTransaksi
             }))
           }
         },
         include: { detailBarang: { include: { barang: true } } }
       });
 
-      // 4. Kurangi stok baru
+      // 3. Kurangi stok baru berdasarkan input yang diedit
       for (const item of detailBarang) {
         const barang = await tx.barang.findUnique({ where: { id: item.barangId } });
         const jumlahDiminta = Number(item.jumlah);
         
         if (!barang) throw new Error("Ada barang yang tidak dikenali!");
-        
         if (barang.stokSekarang < jumlahDiminta) {
-          throw new Error(`Stok [${barang.namaBarang}] tidak cukup! Sisa stok hanya ${barang.stokSekarang}.`);
+          throw new Error(`Stok [${barang.namaBarang}] tidak cukup! Sisa stok terkini: ${barang.stokSekarang}.`);
         }
         
         await tx.barang.update({
@@ -218,6 +208,7 @@ export async function PUT(request: Request) {
         barang: txUpdate.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
       });
 
+      // 4. Catat riwayat perubahan ke Audit Log
       await tx.auditLog.create({
         data: {
           username: actor.username,
@@ -230,6 +221,8 @@ export async function PUT(request: Request) {
       });
       
       return txUpdate;
+    }, {
+      timeout: 30000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
     });
 
     return NextResponse.json(hasil, { status: 200 });
@@ -263,6 +256,7 @@ export async function DELETE(request: Request) {
           barang: txLama.detailBarang.map(d => ({ nama: d.barang.namaBarang, qty: d.jumlah }))
         });
 
+        // Kembalikan stok yang sempat dikurangi sebelum datanya dihapus
         for (const item of txLama.detailBarang) {
           await tx.barang.update({
             where: { id: item.barangId },
@@ -286,9 +280,11 @@ export async function DELETE(request: Request) {
           }
         });
       }
+    }, {
+      timeout: 30000 // 🛠️ FIX: Amankan proses hapus data besar dari timeout
     });
 
-  return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
+    return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
   } catch (error: unknown) {
     if (error instanceof Error) {
         console.error("Gagal menghapus transaksi:", error.message);
