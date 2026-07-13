@@ -7,7 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react"; 
 import { 
   Package, Building2, Users, ArrowDownToLine, ArrowUpFromLine, 
-  TrendingUp, Search, Bell, ChevronDown, LogOut, ShieldAlert 
+  TrendingUp, ChevronDown, LogOut, ShieldAlert 
 } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
