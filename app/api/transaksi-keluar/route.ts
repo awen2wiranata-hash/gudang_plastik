@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       }
       return nota;
     }, {
-      timeout: 30000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
+      timeout: 50000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
     });
 
     return NextResponse.json(hasil, { status: 201 });
@@ -222,7 +222,7 @@ export async function PUT(request: Request) {
       
       return txUpdate;
     }, {
-      timeout: 30000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
+      timeout: 50000 // 🛠️ FIX: Mencegah error timeout 5000ms di Supabase Cloud
     });
 
     return NextResponse.json(hasil, { status: 200 });
@@ -281,7 +281,7 @@ export async function DELETE(request: Request) {
         });
       }
     }, {
-      timeout: 30000 // 🛠️ FIX: Amankan proses hapus data besar dari timeout
+      timeout: 50000 // 🛠️ FIX: Amankan proses hapus data besar dari timeout
     });
 
     return NextResponse.json({ message: "Dihapus & Stok dikembalikan serta log direkam!" }, { status: 200 });
