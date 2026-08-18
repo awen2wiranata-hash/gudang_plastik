@@ -28,18 +28,13 @@ model Barang {
 
 // 3. Tabel Supplier (Pabrik Plastik)
 model Supplier {
-<<<<<<< HEAD
+
   id             String   @id @default(cuid())
   namaPabrik     String   // Contoh: Pabrik Merak, Bintang Terang, dll
   kontak         String?  // Nomor telepon sales pabrik
   alamat         String?
 
-=======
-  id         String  @id @default(cuid())
-  namaPabrik String // Contoh: Pabrik Merak, Bintang Terang, dll
-  kontak     String? // Nomor telepon sales pabrik
-  alamat     String?
->>>>>>> fcc971be59597d7963f92afefbf729d1580838bb
+
 
   // Relasi: 1 Pabrik bisa punya banyak Nota Transaksi Masuk
   transaksiMasuk TransaksiMasuk[]
