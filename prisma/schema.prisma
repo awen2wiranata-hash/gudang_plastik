@@ -14,6 +14,7 @@ model Barang {
   kodeBarang   String   @unique
   namaBarang   String   
   kategori     String?
+  gambarUrl    String?
   stokSekarang Int      @default(0) 
   leadTime     Int      @default(1) 
   
@@ -36,7 +37,8 @@ model Supplier {
   namaPabrik     String   // Contoh: Pabrik Merak, Bintang Terang, dll
   kontak         String?  // Nomor telepon sales pabrik
   alamat         String?
-  
+
+
   // Relasi: 1 Pabrik bisa punya banyak Nota Transaksi Masuk
   transaksiMasuk TransaksiMasuk[]
   
@@ -51,7 +53,7 @@ model TransaksiMasuk {
   
   // Relasi ke Supplier (Pabrik)
   supplierId     String
-  supplier       Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplier       Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict) 
   
   // Relasi ke isi barang di dalam nota ini
   detailBarang   BarangMasuk[] 

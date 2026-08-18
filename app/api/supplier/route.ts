@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 // 3. PUT
 export async function PUT(request: Request) {
   try {
-    const { id, namaPabrik, kontak, alamat } = await request.json();
+    const { id, namaPabrik, kontak, alamat} = await request.json();
     if (!id) return NextResponse.json({ error: "ID tidak ditemukan" }, { status: 400 });
 
     const actor = await getUserFromCookie();

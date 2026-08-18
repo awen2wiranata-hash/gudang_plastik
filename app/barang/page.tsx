@@ -415,24 +415,34 @@ export default function MasterBarangPage() {
                         {item.isAktif ? "AKTIF" : "NONAKTIF / ARSIP"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                      <div className="flex justify-center gap-2.5">
-                        {item.isAktif && (
-                          <button onClick={() => klikEdit(item)} className="text-amber-600 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors border border-amber-200 text-xs">Edit</button>
-                        )}
-                        <button 
-                          onClick={() => handleToggleAktif(item.id, item.namaBarang, item.isAktif)}
-                          className={`font-bold px-3 py-1.5 rounded-lg transition-colors border text-xs ${
-                            item.isAktif 
-                              ? 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-300' 
-                              : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                          }`}
-                        >
-                          {item.isAktif ? "Nonaktifkan" : "Aktifkan"}
-                        </button>
-                        <button onClick={() => klikHapus(item.id, item.namaBarang)} className="text-red-600 hover:text-red-900 font-bold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs">Hapus</button>
-                      </div>
-                    </td>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+  <div className="flex justify-center gap-2.5">
+    
+    {/* 🛠️ TAMBAHAN TOMBOL DETAIL */} 
+    <a 
+      href={`/barang/${item.id}`} 
+      className="text-emerald-600 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200 text-xs flex items-center justify-center"
+    >
+      Detail
+    </a>
+
+    {item.isAktif && (
+      <button onClick={() => klikEdit(item)} className="text-amber-600 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors border border-amber-200 text-xs">Edit</button>
+    )}
+    <button 
+      onClick={() => handleToggleAktif(item.id, item.namaBarang, item.isAktif)}
+      className={`font-bold px-3 py-1.5 rounded-lg transition-colors border text-xs ${
+        item.isAktif 
+          ? 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-300' 
+          : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+      }`}
+    >
+      {item.isAktif ? "Nonaktifkan" : "Aktifkan"}
+    </button>
+    <button onClick={() => klikHapus(item.id, item.namaBarang)} className="text-red-600 hover:text-red-900 font-bold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs">Hapus</button>
+    
+  </div>
+</td>
                   </tr>
                 ))
               )}

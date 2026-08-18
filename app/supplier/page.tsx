@@ -18,6 +18,7 @@ export default function MasterSupplierPage() {
   const [namaPabrik, setNamaPabrik] = useState("");
   const [kontak, setKontak] = useState("");
   const [alamat, setAlamat] = useState("");
+
   
   // State Pembantu Pengontrol Mode Edit
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export default function MasterSupplierPage() {
     setNamaPabrik(item.namaPabrik);
     setKontak(item.kontak || "");
     setAlamat(item.alamat || "");
+
   };
 
   const handleCancelEdit = () => {
@@ -185,6 +187,7 @@ export default function MasterSupplierPage() {
                     <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900">{item.namaPabrik}</td>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">{item.kontak || "-"}</td>
                     <td className="px-6 py-4 whitespace-nowrap max-w-xs truncate font-medium">{item.alamat || "-"}</td>
+
                     <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-bold">
                       <div className="flex justify-center gap-3">
                         <button onClick={() => handleEditClick(item)} className="text-amber-600 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-lg transition-colors border border-amber-200" title="Edit Data">
