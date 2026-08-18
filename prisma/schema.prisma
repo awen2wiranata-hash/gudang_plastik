@@ -4,37 +4,36 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
 }
 
 // 2. Tabel Master Barang (Jenis Plastik)
 model Barang {
-  id            String   @id @default(cuid())
-  kodeBarang    String   @unique
-  namaBarang    String
-  kategori      String?
-  gambarUrl     String?
-  stokSekarang  Int      @default(0)
-  leadTime      Int      @default(1)
-  isAktif       Boolean  @default(true)
+  id           String   @id @default(cuid())
+  kodeBarang   String   @unique
+  namaBarang   String
+  kategori     String?
+  gambarUrl    String?
+  stokSekarang Int      @default(0)
+  leadTime     Int      @default(1)
+  isAktif      Boolean  @default(true)
 
   riwayatMasuk  BarangMasuk[]
   riwayatKeluar BarangKeluar[]
   dataPeramalan Peramalan[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // 3. Tabel Supplier (Pabrik Plastik)
 model Supplier {
-  id             String   @id @default(cuid())
+  id             String           @id @default(cuid())
   namaPabrik     String
   kontak         String?
   alamat         String?
   transaksiMasuk TransaksiMasuk[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime         @default(now())
 }
 
 // 4. Tabel Header Transaksi Masuk
